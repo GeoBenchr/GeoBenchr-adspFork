@@ -40,3 +40,4 @@ Statistical Queries: Retrieve aggregated or statistical summaries of data, such 
 Threshold Queries: Retrieve data where attribute values exceed or fall below certain thresholds.
 5. Combined Queries
 Complex Queries: Combine spatiotemporal and attribute conditions to retrieve data that meets multiple criteria.  
+test
