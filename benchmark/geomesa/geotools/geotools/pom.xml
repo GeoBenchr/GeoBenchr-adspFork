@@ -15,7 +15,7 @@
     <geotools.version>30.2</geotools.version>
     <maven.deploy.skip>true</maven.deploy.skip>
     <scala.abi.version>2.12</scala.abi.version>
-    <zookeeper.version>3.9.2</zookeeper.version>
+    <zookeeper.version>3.9.3</zookeeper.version>
   </properties>
   <dependencies>
     <dependency>
@@ -73,6 +73,21 @@
   <build>
     <plugins>
       <plugin>
+      <!-- Build an executable JAR -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <addClasspath>true</addClasspath>
+              <classpathPrefix>lib/</classpathPrefix>
+              <mainClass>com.example.Main</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.8.0</version>
@@ -90,6 +105,19 @@
             <goals>
               <goal>shade</goal>
             </goals>
+            <configuration>
+                <!-- <minimizeJar>true</minimizeJar> -->
+                <filters>
+                    <filter>
+                        <artifact>*:*</artifact>
+                        <excludes>
+                            <exclude>META-INF/*.SF</exclude>
+                            <exclude>META-INF/*.DSA</exclude>
+                            <exclude>META-INF/*.RSA</exclude>
+                        </excludes>
+                    </filter>
+                </filters>
+            </configuration>
           </execution>
         </executions>
       </plugin>

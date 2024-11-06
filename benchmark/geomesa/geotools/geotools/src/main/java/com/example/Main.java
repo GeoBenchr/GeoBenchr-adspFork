@@ -7,12 +7,37 @@ import java.util.Map;
 import org.geotools.api.data.DataStore;
 import org.geotools.api.data.DataStoreFinder;
 import org.geotools.api.data.SimpleFeatureSource;
+import org.geotools.api.feature.simple.SimpleFeature;
 import org.geotools.api.feature.simple.SimpleFeatureType;
 import org.geotools.api.feature.type.AttributeDescriptor;
 import org.geotools.api.filter.Filter;
 import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.filter.text.cql2.CQL;
+
 public class Main {
+    // Method to execute the queries on the datastore
+    // Input: queryType:Str; limit:Int
+    // Output: None
+    // Functionality: Executes the query on the datastore, saves the required time in a file
+    public static void executeQuery(String queryType, Integer limit){
+        // Eexecute the query
+
+        // Save the query type, start time, end time, duration, and parallelism i.e thread count in a file
+    
+        // Print the time
+    }
+
+    public static void runThreads(String queryType, Integer threadCount)
+    {
+        // Create threads
+
+        // Start threads
+
+        // Wait for threads to finish
+
+    }
+    //
     public static void main(String[] args) {
         System.out.println("Starting...");
         String instanceName = args[0];
@@ -42,19 +67,50 @@ public class Main {
                 SimpleFeatureSource source = dataStore.getFeatureSource(str);
                 System.out.println("This is the source: "+source);
                 Filter filter=null;
+                Filter filter2=null;
+                
                 try {
-                    filter= CQL.toFilter("rider_id = 27");
+                    filter= CQL.toFilter("rider_id <= 27");
+                    filter2 = CQL.toFilter("rider_id <= 5");
                 }catch(Exception e){
                     System.out.println("Failed to set filter");
                 }
                 System.out.println("This is the filter: "+filter);
-                SimpleFeatureCollection features = source.getFeatures();
-                SimpleFeatureCollection limitedFeatures = source.getFeatures(filter);
+                SimpleFeatureCollection allFeatures = source.getFeatures( filter2 );
+                SimpleFeatureCollection limitedFeatures = source.getFeatures( filter );
                 SimpleFeatureType schema = source.getSchema();
                 for (AttributeDescriptor descriptor : schema.getAttributeDescriptors()) {
                    System.out.println(descriptor.getLocalName() + " - " + descriptor.getType().getBinding());
                 }
-                int count = features.size();
+                if(str.equals("trip_data")){
+                    
+                
+                SimpleFeatureIterator it = limitedFeatures.features();
+                try {
+                    while (it.hasNext()) {
+                        SimpleFeature feature = it.next();
+                        System.out.println("This is the feature: "+feature.getAttribute("rider_id"));
+                    }
+                }catch(Exception e){
+                    System.out.println("Failed to iterate over the features");
+                    
+                } finally {
+                    it.close();
+                }
+                it = allFeatures.features();
+                try {
+                    while (it.hasNext()) {
+                        SimpleFeature feature = it.next();
+                        System.out.println("This is the feature: "+feature.getAttribute("rider_id"));
+                    }
+                }catch(Exception e){
+                    System.out.println("Failed to iterate over the features");
+                    
+                } finally {
+                    it.close();
+                }
+            }
+                int count = allFeatures.size();
                 int count2 = limitedFeatures.size();
                 System.out.println("Number of selected features:" + count+ " ,"+count2);
             }

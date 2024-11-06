@@ -34,6 +34,14 @@ Connect to the machine and run the manager script (If we were to pass the script
 ```
 ssh $SSH_USER@$GCP_IP 'chmod +x ~/startManager.sh; ~/startManager.sh'
 ```
+## Start the Accumulo instance
+Now you can start the database:
+```
+ssh $SSH_USER@$GCP_IP "/opt/hadoop/bin/hdfs namenode -format"
+ssh $SSH_USER@$GCP_IP "/opt/hadoop/sbin/start-dfs.sh"
+ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo init --instance-name test -u root --password test"
+ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo-cluster start"
+```
 You can now use your browser to check if Accumulo is running correctly by connecting to the monitor node of Accumulo.
 ```
 http://<GCP_IP_HERE>:9995
@@ -52,7 +60,7 @@ ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-sch
 ### Setup a csv converter to convert the data into the correct format
 ```
 scp ../../converter/ride_data.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
-scp ../../converter/trip_data_new.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
+scp ../../converter/trip_data.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
 ```
 ### Ingest data
 If you want to ingest all data:
@@ -81,13 +89,38 @@ ssh $SSH_USER@$GCP_IP '/opt/geomesa-accumulo/bin/geomesa-accumulo export -i test
 
 
 ## Local Benchmark experiment
-Open a second terminal in the current folder
+Running a local benchmark requires setting the hosts in /etc/hosts
+### Setting up /etc/hosts on your local machine
+In the current state, you need to add the external IP to your local /etc/hosts file in order for the requests to correctly be able to access the tablet servers. This is a pain in the butt and not really production usable, but its what works for now. The step below will do so (depending on your set permissions, you might have to set these manually):
+```
+echo "$GCP_IP accumulo-namenode-manager" >> /etc/hosts
+```
+Setting them manually: 
+``` 
+sudo vi /etc/hosts
+```
+Add them in the following format (you can get the external ips using `terraform output`, with the external IPs being in order from 0 to n-1 workers from top to bottom as they are displayed):
+```
+<GCP_IP> <accumulo-namenode-manager>
+```
+### Running the benchmark
+#### GeoTools
+Running this benchmark requires JDK 11 and Maven to be installed on your machine. Open a second terminal in the current folder:
+```
+export GCP_IP=$(terraform output -raw external_ip_sut_manager)
+cd ../../../benchmark/geomesa/geotools/geootools
+mvn clean install
+java -jar target/geobenchr-1.0.jar test root test example $GCP_IP
+```
+#### Shell 
+Running this benchmark requires Python to be installed. Open a second terminal in the current folder
 ```
 export SSH_USER=$(terraform output -raw ssh_user)
 export GCP_IP=$(terraform output -raw external_ip_sut_manager)
 cd ../../../benchmark/geomesa/shell_benchmark
 python runMiniBenchmark $GCP_IP single
 ```
+
 ## Check and setup benchmark client
 ### Not functional as of yet
 Run this again from your local device.
