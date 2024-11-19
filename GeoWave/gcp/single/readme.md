@@ -1,6 +1,5 @@
 # Setting up GeoWave
-Make sure to adjust the `variables.tf`file to match your configuration. Specifically, change the project and ssh key. MobilityDB uses a startup script, so give the machine a couple of minutes to configure everything.
-```
+Make sure to adjust the `variables.tf`file to match your configuration.
 terraform init
 terraform apply --auto-approve
 ```
