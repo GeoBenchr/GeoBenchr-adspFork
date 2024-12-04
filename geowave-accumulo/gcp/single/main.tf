@@ -38,18 +38,18 @@ resource "google_compute_firewall" "default" {
 }
 
 # --------------------------------------
-# BENCHMARKING CLIENT
+# BENCHMARKING MANAGER
 # --------------------------------------
 
-resource "google_compute_instance" "benchmark_client" {
-  name         = "benchmark_client_geoWave"
+resource "google_compute_instance" "geowave_benchmark_manager" {
+  name         = "geowave-benchmark-manager"
   machine_type = var.machine_type
   zone         = var.zone
 
   boot_disk {
     initialize_params {
       image = "ubuntu-os-cloud/ubuntu-2004-lts"
-      size = 50#GB
+      size = 40 #GB
     }
   }
 
@@ -63,12 +63,15 @@ resource "google_compute_instance" "benchmark_client" {
   tags = ["benchmark","geowave", "accumulo"]
 
   metadata = {
-    ssh-keys = "${var.gcp_ssh_user}:${file(var.gcp_ssh_pub_key_file)}"
+    ssh-keys = "${var.gcp_ssh_user}:${data.local_file.ssh_public_key.content}"
   }
-
-  # Uncomment if you want to use a startup script
-  # metadata_startup_script = "${file("scripts/startManager.sh")}"
 }
+
+# --------------------------------------
+# BENCHMARKING CLIENT
+# --------------------------------------
+
+#To be added
 
 # --------------------------------------
 # OUTPUT VARIABLES
@@ -76,11 +79,9 @@ resource "google_compute_instance" "benchmark_client" {
 
 output "ssh_user" {
   value     = var.gcp_ssh_user
-  sensitive = true
+  sensitive = false
 }
 
 output "external_ip" {
-  value = {
-    manager = google_compute_instance.benchmark_client.network_interface[0].access_config[0].nat_ip
-    }
+  value = google_compute_instance.geowave_benchmark_manager.network_interface[0].access_config[0].nat_ip
 }
