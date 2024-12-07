@@ -23,7 +23,7 @@ ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 chmod 0600 ~/.ssh/authorized_keys
 
-# Install Zookeeper (downgrade to version 3.4.14 for compatibility)
+# Install Zookeeper
 export ZOOKEEPER_VERSION="3.4.14"
 wget https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz
 tar -xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz
@@ -106,6 +106,7 @@ find /opt/accumulo/lib/ -type f -name '*jline*.jar' ! -name 'jline-2.11.jar' -de
 find /opt/accumulo/lib/ -type f -name 'slf4j*.jar' ! -name 'slf4j-api-1.7.26.jar' -and ! -name 'slf4j-log4j12-1.7.26.jar' -delete
 
 export PATH=$PATH:/opt/accumulo/bin
+echo "export PATH=\$PATH:/opt/accumulo/bin" >> ~/.bashrc
 source ~/.bashrc
 
 # Update Accumulo configuration
@@ -117,10 +118,26 @@ sed -i 's/auth.token=/auth.token=test/g' conf/accumulo-client.properties
 sed -i 's/instance.zookeepers=localhost/instance.zookeepers=geowave-benchmark-manager/g' conf/accumulo-client.properties
 bin/accumulo-cluster create-config
 
+#Upload Accumulo JARs to HDFS
+hdfs dfs -mkdir -p /accumulo/lib
+hdfs dfs -put /opt/accumulo/lib/*.jar /accumulo/lib/
+
+#configure Accumulo for GeoWave
+accumulo shell -u root <<EOF
+createnamespace geowave
+createuser geowave
+grant NameSpace.CREATE_TABLE -ns geowave -u geowave
+config -s general.vfs.context.classpath.geowave=hdfs://geowave-benchmark-manager:9000/accumulo/lib/[^.].*.jar
+config -ns geowave -s table.classpath.context=geowave
+exit
+EOF
+
+#install geowave
+#https://geowave.s3.amazonaws.com/latest/standalone-installers/geowave_unix_2_0_2-SNAPSHOT.sh
 cd ~
-wget https://geowave.s3.amazonaws.com/latest/standalone-installers/geowave_unix_2_0_2-SNAPSHOT.sh
-chmod +x geowave_unix_2_0_2-SNAPSHOT.sh
-sudo ./geowave_unix_2_0_2-SNAPSHOT.sh <<EOF
+wget https://geowave.s3.amazonaws.com/2.0.1/standalone-installers/geowave_unix_2_0_1.sh
+chmod +x geowave_unix_2_0_1.sh
+sudo ./geowave_unix_2_0_1.sh <<EOF
 o
 /opt/geowave
 1,2,4,5,6,7,8,10,11,13,14,23,24,25,26,27,28,29,30,31,33,42,43
@@ -141,5 +158,11 @@ sudo mkdir -p /opt/geowave/logs
 sudo chown -R "$USER":"$USER" /opt/geowave
 sudo chmod -R 755 /opt/geowave
 source ~/.bashrc
+
+#export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+#echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> ~/.bashrc
+#source ~/.bashrc
+
+JAVA_OPTS="-Dlog4j.debug=true -Dlog4j.configuration=file:/opt/geowave/conf/log4j.properties" geowave help
 
 echo "Hadoop, ZooKeeper, Accumulo and GeoWave installation and configuration complete!"
