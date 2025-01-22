@@ -1,15 +1,15 @@
 import os
 import requests
 import csv
+import sys
 
 BASE_URL = 'https://www.movebank.org/movebank/service'
 
-# Ensure environment variables are set for authentication
 MOVEBANK_USERNAME = os.getenv('MOVEBANK_USERNAME')
 MOVEBANK_PASSWORD = os.getenv('MOVEBANK_PASSWORD')
 
 if not MOVEBANK_USERNAME or not MOVEBANK_PASSWORD:
-    raise EnvironmentError("Environment variables MOVEBANK_USERNAME and MOVEBANK_PASSWORD must be set.")
+    raise EnvironmentError("Environment variables MOVEBANK_USERNAME and MOVEBANK_PASSWORD must be set. Create an account at movebank.org")
 
 def get_studies():
     response = requests.get(
@@ -31,18 +31,16 @@ def download_study(id):
     lines = [line.replace('\r', '') for line in lines] 
 
     header = lines[0].split(",")
-    header.append("dataset_id")  # Add 'dataset_id' to the header
+    header.append("dataset_id") # add dataset id to keep track of which dataset it was part before merging
     data_rows = [line.split(",") for line in lines[1:]]
     
-    # Add dataset ID to each data row
     for row in data_rows:
         row.append(str(id))
 
-    # Write to CSV
     with open(f'datasets/{id}.csv', "w", newline="") as csv_file:
         writer = csv.writer(csv_file)
-        writer.writerow(header)  # Write header row
-        writer.writerows(data_rows)  # Write data rows
+        writer.writerow(header)
+        writer.writerows(data_rows)
 
     return lines
 
@@ -73,21 +71,19 @@ def download_rows(num_rows):
         print(f'All ids were downloaded. {acc} lines were reached.')
 
 def main():
-    print("Welcome to the dataset downloader!")
-    while True:
-        try:
-            # Ask user for the number of rows to download
-            num_rows = int(input("Enter the number of rows you want to download: "))
-            if num_rows <= 0:
-                print("Please enter a positive number.")
-                continue
-            
-            # Call the download function
-            download_rows(num_rows)
-            break
+    try:
+        if len(sys.argv) != 2:
+            print("Usage: python script.py <number_of_rows>")
+            sys.exit(1)
+
+        num_rows = int(sys.argv[1])
+        if num_rows <= 0:
+            print("Please enter a positive number.")
+            sys.exit(1)
         
-        except ValueError:
-            print("Invalid input. Please enter a valid number.")
+        download_rows(num_rows)
+    except ValueError:
+        print("Invalid input. Please enter a valid number.")
 
 if __name__ == "__main__":
     main()
