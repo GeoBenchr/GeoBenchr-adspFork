@@ -16,7 +16,7 @@ variable "gcp_ssh_user" {
 
 # the absolute path to your public ssh-key
 variable "gcp_ssh_pub_key_file" {
-    default = "/home/vinc/.ssh/id_rsa.pub"
+    default = "/home/ilja/.ssh/id_ed25519.pub"
 }
 
 variable "machine_type" {

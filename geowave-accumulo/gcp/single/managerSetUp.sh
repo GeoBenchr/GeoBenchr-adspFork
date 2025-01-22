@@ -4,6 +4,9 @@ sudo apt update
 sudo apt-get install -y --force-yes ssh pdsh openjdk-8-jdk maven git openssh-server wget libxml2-utils make g++ libsnappy1v5 </dev/null
 
 # Configure Java 8 as the default
+sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
+sudo update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
+
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> ~/.bashrc
 echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
@@ -154,6 +157,10 @@ source ~/.bashrc
 sudo bash -c "echo '* soft nofile 32768' >> /etc/security/limits.conf"
 sudo bash -c "echo '* hard nofile 32768' >> /etc/security/limits.conf"
 
+# JVM-Warnings reduzieren
+echo "export JAVA_OPTS='--illegal-access=deny'" >>~/.bashrc
+source ~/.bashrc
+
 sudo mkdir -p /opt/geowave/logs
 sudo chown -R "$USER":"$USER" /opt/geowave
 sudo chmod -R 755 /opt/geowave
@@ -163,6 +170,6 @@ source ~/.bashrc
 #echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> ~/.bashrc
 #source ~/.bashrc
 
-JAVA_OPTS="-Dlog4j.debug=true -Dlog4j.configuration=file:/opt/geowave/conf/log4j.properties" geowave help
+JAVA_OPTS="-Dlog4j.debug=true -Dlog4j.configuration=file:/opt/geowave/conf/log4j.properties"
 
-echo "Hadoop, ZooKeeper, Accumulo and GeoWave installation and configuration complete!"
+echo "Hadoop, ZooKeeper, Accumulo and GeoWave installation  complete!"

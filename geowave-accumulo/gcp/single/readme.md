@@ -17,7 +17,7 @@ scp managerSetUp.sh $SSH_USER@$GCP_IP:~/
 ```
 
 ## Run the script for the Geowave-Manager machine 
-Don't connect to the maschine and run the script locally, this will cause premission issues.
+Don't connect to the maschine and run the script locally because this will cause premission issues.
 ```
 ssh $SSH_USER@$GCP_IP 'chmod +x ~/managerSetUp.sh; ~/managerSetUp.sh'
 ```
@@ -45,29 +45,36 @@ geowave store add -t accumulo \
     --gwNamespace geowave \
     accumuloStore
 ````
-# Example:
-## Copy sample to the geowave-benchmark-manager machine
-```
-scp ../../../data/merged00.csv $SSH_USER@$GCP_IP:~/
-```
-## Create an index
 ````
 accumulo shell -u root -p test
 createnamespace geowave
 
-geowave index add accumuloStore simraIndex \
+````
+# Example:
+## Copy sample to the geowave-benchmark-manager machine
+```
+scp mock_gdelt.csv $SSH_USER@$GCP_IP:~/
+```
+## Create an index
+````
+geowave index add accumuloStore testIndex \
     -t spatial_temporal \
     --numPartitions 4
 ````
+
 ## Ingest data
 WIP
 ````
-geowave ingest localToGW \
-    /home/manager/merged00.csv \
+geowave --debug ingest localToGW \
+    /home/manager/mock_gdelt.csv \
     accumuloStore \
-    simraIndex \
-    --typeName rideData \
-    --csvColumns "ride_id,rider_id,latitude,longitude,x,y,z,timestamp" \
-    --geometryColumn geom \
-    --timeColumn timestamp
+    testIndex \
+    -f gdelt
+    
+````
+--csvColumns "GlobalEventId,Actor1Name,Actor1CountryCode,Actor2Name,Actor2CountryCode,EventDate,geometry" \
+
+## How to add an index
+````
+geowave index add accumuloStore testIndex   --type spatial_temporal
 ````
