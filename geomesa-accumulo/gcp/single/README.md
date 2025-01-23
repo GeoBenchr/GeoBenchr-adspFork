@@ -14,6 +14,16 @@ export SSH_USER=$(terraform output -raw ssh_user)
 export GCP_IP=$(terraform output -raw external_ip_sut_manager)
 scp scripts/startManager.sh $SSH_USER@$GCP_IP:~/ 
 ```
+### MoveBank dataset
+Run the data downloader with the desired number of records
+```
+bash ../../../data/moveBank/get_movebank_dataset.sh <number_of_rows>
+```
+Copy the desired files to the VM. In this case, all of them:
+```
+scp ../../../data/moveBank/datasets/geomesa/*.csv $SSH_USER@$GCP_IP:~/
+```
+### SimRa dataset
 If you want to copy all files onto the machine:
 ```
 scp ../../../data/geomesa*.csv $SSH_USER@$GCP_IP:~/ 
@@ -53,16 +63,25 @@ ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo;yes | bin/install-dependencies.s
 ```
 Here we create SimpleFeatureType schemas, which GeoMesa uses for storing spatiotemporal data. First we create one for point data, and then trip(line) data. However, GeoMesa does not offer the same kind of support for moving points when compared to GeoMesa's `tgeogpoint`.
 ```
+ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "timestamp:Date,lon:Double,lat:Double,geom:Point:srid=4326,individual_id:Integer,tag_id:Integer,dataset_id:Integer" -f movebank_data'
+
 ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "ride_id:Integer:index=full,rider_id:Integer:index=full,latitude:Double,longitude:Double,geom:Point:srid=4326,x:Double,y:Double,z:Double,timestamp:Date" -f ride_data'
 
 ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "ride_id:Integer:index=full,rider_id:Integer:index=full,trip:MultiLineString:srid=4326,timestamp:List[Date]" -f trip_data'
 ```
 ### Setup a csv converter to convert the data into the correct format
 ```
+scp ../../converter/movebank_data.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
 scp ../../converter/ride_data.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
 scp ../../converter/trip_data.converter $SSH_USER@$GCP_IP:/opt/geomesa-accumulo
 ```
 ### Ingest data
+
+#### MoveBank
+```
+ssh $SSH_USER@$GCP_IP '/opt/geomesa-accumulo/bin/geomesa-accumulo ingest -C /opt/geomesa-accumulo/movebank_data.converter -c example -i test -z localhost -u root -p test -f movebank_data -t 8 ~/moveBank*.csv'
+```
+#### SimRa
 If you want to ingest all data:
 ```
 ssh $SSH_USER@$GCP_IP '/opt/geomesa-accumulo/bin/geomesa-accumulo ingest -C /opt/geomesa-accumulo/ride_data.converter -c example -i test -z localhost -u root -p test -f ride_data -t 8 ~/geomesa_merged*.csv'
