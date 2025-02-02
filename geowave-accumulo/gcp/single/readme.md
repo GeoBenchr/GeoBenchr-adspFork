@@ -31,11 +31,20 @@ ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo-cluster start"
 ````
 
 ## Initilaize Geowave
+
+### upload script in GeoWave JARs transfer script
+````
+scp transfer_geowave_jars.sh $SSH_USER@$GCP_IP:~/  
+````
+
 Connect to the maschine:
 ````
 ssh $SSH_USER@$GCP_IP
 ````
-and run the following to add Accumulo to Geowave:  
+### and run the following to add Accumulo to Geowave:  
+
+create a accumulo Store in Geowave:
+
 ````
 geowave store add -t accumulo \
     --zookeeper geowave-benchmark-manager:2181 \
@@ -45,10 +54,16 @@ geowave store add -t accumulo \
     --gwNamespace geowave \
     accumuloStore
 ````
+create a Geowave namespace in Accumulo:
 ````
-accumulo shell -u root -p test
+accumulo shell -u root <<EOF
 createnamespace geowave
-
+createuser geowave
+grant NameSpace.CREATE_TABLE -ns geowave -u geowave
+config -s general.vfs.context.classpath.geowave=hdfs://geowave-benchmark-manager:9000/accumulo/lib/[^.].*.jar
+config -ns geowave -s table.classpath.context=geowave
+exit
+EOF
 ````
 # Example:
 ## Copy sample to the geowave-benchmark-manager machine

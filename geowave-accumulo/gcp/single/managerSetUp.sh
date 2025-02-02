@@ -1,7 +1,15 @@
 #!/bin/bash
+
+# Version constants
+HADOOP_VERSION="3.1.4"
+ZOOKEEPER_VERSION="3.4.14"
+ACCUMULO_VERSION="2.0.1"
+GEOWAVE_VERSION="2.0.1"
+
 # Update and install required packages
-sudo apt update
-sudo apt-get install -y --force-yes ssh pdsh openjdk-8-jdk maven git openssh-server wget libxml2-utils make g++ libsnappy1v5 </dev/null
+export DEBIAN_FRONTEND=noninteractive
+sudo apt-get update -q
+sudo apt-get install -y ssh pdsh openjdk-8-jdk maven git openssh-server wget libxml2-utils make g++ libsnappy1v5 </dev/null
 
 # Configure Java 8 as the default
 sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
@@ -27,14 +35,17 @@ cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 chmod 0600 ~/.ssh/authorized_keys
 
 # Install Zookeeper
-export ZOOKEEPER_VERSION="3.4.14"
 wget https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz
 tar -xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz
 sudo mv zookeeper-${ZOOKEEPER_VERSION} /opt/zookeeper
+
+# Set ZooKeeper environment variables
 export ZOOKEEPER_HOME=/opt/zookeeper
 echo "export ZOOKEEPER_HOME=/opt/zookeeper" >> ~/.bashrc
 echo "export PATH=\$ZOOKEEPER_HOME/bin:\$PATH" >> ~/.bashrc
 source ~/.bashrc
+
+# Configure and Start ZooKeeper
 cd /opt/zookeeper
 cp conf/zoo_sample.cfg conf/zoo.cfg
 bin/zkServer.sh start
@@ -48,8 +59,7 @@ fi
 
 # Install Hadoop
 cd ~
-export HADOOP_VERSION="3.3.6"
-wget https://dlcdn.apache.org/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+wget https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
 tar -xvf hadoop-${HADOOP_VERSION}.tar.gz
 sudo mv hadoop-${HADOOP_VERSION} /opt/hadoop
 cd /opt/hadoop
@@ -67,8 +77,12 @@ echo "<configuration>
 
 echo "<configuration>
     <property>
-        <name>dfs.replication</name>
+        <name>dfs.namenode.replication.min</name>
         <value>1</value>
+    </property>
+    <property>
+        <name>dfs.blocksize</name>
+        <value>134217728</value>  <!-- Default block size -->
     </property>
 </configuration>" > etc/hadoop/hdfs-site.xml
 
@@ -89,7 +103,6 @@ export PDSH_RCMD_TYPE=ssh
 
 # Install Accumulo
 cd ~
-export ACCUMULO_VERSION="2.0.1"
 wget https://archive.apache.org/dist/accumulo/${ACCUMULO_VERSION}/accumulo-${ACCUMULO_VERSION}-bin.tar.gz
 tar -xvf accumulo-${ACCUMULO_VERSION}-bin.tar.gz
 sudo mv accumulo-${ACCUMULO_VERSION} /opt/accumulo
@@ -125,15 +138,6 @@ bin/accumulo-cluster create-config
 hdfs dfs -mkdir -p /accumulo/lib
 hdfs dfs -put /opt/accumulo/lib/*.jar /accumulo/lib/
 
-#configure Accumulo for GeoWave
-accumulo shell -u root <<EOF
-createnamespace geowave
-createuser geowave
-grant NameSpace.CREATE_TABLE -ns geowave -u geowave
-config -s general.vfs.context.classpath.geowave=hdfs://geowave-benchmark-manager:9000/accumulo/lib/[^.].*.jar
-config -ns geowave -s table.classpath.context=geowave
-exit
-EOF
 
 #install geowave
 #https://geowave.s3.amazonaws.com/latest/standalone-installers/geowave_unix_2_0_2-SNAPSHOT.sh
@@ -165,10 +169,6 @@ sudo mkdir -p /opt/geowave/logs
 sudo chown -R "$USER":"$USER" /opt/geowave
 sudo chmod -R 755 /opt/geowave
 source ~/.bashrc
-
-#export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-#echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> ~/.bashrc
-#source ~/.bashrc
 
 JAVA_OPTS="-Dlog4j.debug=true -Dlog4j.configuration=file:/opt/geowave/conf/log4j.properties"
 

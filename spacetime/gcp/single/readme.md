@@ -1,4 +1,13 @@
-# Setting up SpaceTime
+# Spacetime
+
+This folder contains Terraform files for a single-node setup for Spacetime with the following requirements:
+
+- n2-standard-16 instance (16 vCPUs, 64 GiB RAM)
+- 2 x 375 GB Local SSDs with an NVMe interface
+
+You may need to increase the quota of your project to be able to run these files.
+
+## Setting up SpaceTime
 Make sure to adjust the `variables.tf`file to match your configuration and that your GCloud authentication worked. Then run:
 ```
 terraform init
