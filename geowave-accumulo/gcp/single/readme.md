@@ -34,7 +34,8 @@ ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo-cluster start"
 
 ### upload script in GeoWave JARs transfer script
 ````
-scp transfer_geowave_jars.sh $SSH_USER@$GCP_IP:~/  
+scp transfer_geowave_jars.sh $SSH_USER@$GCP_IP:~/
+scp geowave_accumulo_configuration.sh $SSH_USER@$GCP_IP:~/    
 ````
 
 Connect to the maschine:
@@ -54,17 +55,7 @@ geowave store add -t accumulo \
     --gwNamespace geowave \
     accumuloStore
 ````
-create a Geowave namespace in Accumulo:
-````
-accumulo shell -u root <<EOF
-createnamespace geowave
-createuser geowave
-grant NameSpace.CREATE_TABLE -ns geowave -u geowave
-config -s general.vfs.context.classpath.geowave=hdfs://geowave-benchmark-manager:9000/accumulo/lib/[^.].*.jar
-config -ns geowave -s table.classpath.context=geowave
-exit
-EOF
-````
+
 # Example:
 ## Copy sample to the geowave-benchmark-manager machine
 ```
@@ -91,5 +82,5 @@ geowave --debug ingest localToGW \
 
 ## How to add an index
 ````
-geowave index add accumuloStore testIndex   --type spatial_temporal
+http://<GCP_IP_HERE>:9995
 ````

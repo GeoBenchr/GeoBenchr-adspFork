@@ -10,4 +10,4 @@ hdfs dfs -copyFromLocal /tmp/geowave-jars/*.jar /accumulo/classpath/
 echo "Transfer completed!"
 rm -rf /tmp/geowave-jars
 
-echo "All GeoWave JARs are now in /accumulo/classpath/"
+echo "All GeoWave JARs are copied to /accumulo/classpath/"
