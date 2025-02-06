@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # Version constants
-HADOOP_VERSION="3.1.4"
-ZOOKEEPER_VERSION="3.4.14"
-ACCUMULO_VERSION="2.0.1"
-GEOWAVE_VERSION="2.0.1"
+HADOOP_VERSION="2.6.0"
+ZOOKEEPER_VERSION="3.4.5"
+ACCUMULO_VERSION="1.7.2"
 
 # Update and install required packages
 export DEBIAN_FRONTEND=noninteractive
@@ -50,126 +49,48 @@ cd /opt/zookeeper
 cp conf/zoo_sample.cfg conf/zoo.cfg
 bin/zkServer.sh start
 
-# Add namenode-manager to /etc/hosts
-machine_name="geowave-benchmark-manager"
-ip_address=$(nslookup $machine_name | awk '/^Address: / { print $2 }')
-if ! grep -q "$ip_address $machine_name" /etc/hosts; then
-    echo "$ip_address $machine_name" | sudo tee -a /etc/hosts
-fi
-
-# Install Hadoop
-cd ~
-wget https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
-tar -xvf hadoop-${HADOOP_VERSION}.tar.gz
-sudo mv hadoop-${HADOOP_VERSION} /opt/hadoop
-cd /opt/hadoop
-mkdir namenode
-echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> etc/hadoop/hadoop-env.sh
-bin/hadoop version
-
-# Configure Hadoop
-echo "<configuration>
-    <property>
-        <name>fs.defaultFS</name>
-        <value>hdfs://geowave-benchmark-manager:9000</value>
-    </property>
-</configuration>" > etc/hadoop/core-site.xml
-
-echo "<configuration>
-    <property>
-        <name>dfs.namenode.replication.min</name>
-        <value>1</value>
-    </property>
-    <property>
-        <name>dfs.blocksize</name>
-        <value>134217728</value>  <!-- Default block size -->
-    </property>
-</configuration>" > etc/hadoop/hdfs-site.xml
-
-echo "<configuration>
-    <property>
-        <name>yarn.acl.enable</name>
-        <value>false</value>
-    </property>
-    <property>
-        <name>yarn.admin.acl</name>
-        <value>*</value>
-    </property>
-</configuration>" > etc/hadoop/yarn-site.xml
-
-echo "export PDSH_RCMD_TYPE=ssh" >> etc/hadoop/hadoop-env.sh
-echo "export PDSH_RCMD_TYPE=ssh" >> ~/.bashrc
-export PDSH_RCMD_TYPE=ssh
-
 # Install Accumulo
-cd ~
 wget https://archive.apache.org/dist/accumulo/${ACCUMULO_VERSION}/accumulo-${ACCUMULO_VERSION}-bin.tar.gz
 tar -xvf accumulo-${ACCUMULO_VERSION}-bin.tar.gz
 sudo mv accumulo-${ACCUMULO_VERSION} /opt/accumulo
-cd /opt/accumulo
-echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> conf/accumulo-env.sh
-bin/build_native_components.sh
-export ACCUMULO_HOME=/opt/accumulo
-sed -i '/ZOOKEEPER_HOME=/a\
-ACCUMULO_HOME=/opt/accumulo\
-ZOOKEEPER_HOME=/opt/zookeeper\
-HADOOP_HOME=/opt/hadoop' conf/accumulo-env.sh
 
-# Copy ZooKeeper JARs to Accumulo's lib directory
-cp /opt/zookeeper/lib/*.jar /opt/accumulo/lib/
-
-find /opt/accumulo/lib/ -type f -name '*jline*.jar' ! -name 'jline-2.11.jar' -delete
-find /opt/accumulo/lib/ -type f -name 'slf4j*.jar' ! -name 'slf4j-api-1.7.26.jar' -and ! -name 'slf4j-log4j12-1.7.26.jar' -delete
-
-export PATH=$PATH:/opt/accumulo/bin
+# Configure Accumulo
+echo "export ACCUMULO_HOME=/opt/accumulo" >> ~/.bashrc
 echo "export PATH=\$PATH:/opt/accumulo/bin" >> ~/.bashrc
 source ~/.bashrc
 
-# Update Accumulo configuration
-sed -i 's/8020/9000/g' conf/accumulo.properties
-sed -i 's/localhost/geowave-benchmark-manager/g' conf/accumulo.properties
-sed -i 's/instance.name=/instance.name=test/g' conf/accumulo-client.properties
-sed -i 's/auth.principal=/auth.principal=root/g' conf/accumulo-client.properties
-sed -i 's/auth.token=/auth.token=test/g' conf/accumulo-client.properties
-sed -i 's/instance.zookeepers=localhost/instance.zookeepers=geowave-benchmark-manager/g' conf/accumulo-client.properties
-bin/accumulo-cluster create-config
+# Create Accumulo configuration file
+cp /opt/accumulo/conf/templates/accumulo-site.xml /opt/accumulo/conf/accumulo-site.xml
+cat <<EOT > /opt/accumulo/conf/accumulo-site.xml
+<configuration>
+    <property>
+        <name>instance.zookeeper.host</name>
+        <value>geowave-benchmark-manager:2181</value>
+    </property>
+    <property>
+        <name>instance.name</name>
+        <value>test</value>
+    </property>
+    <property>
+        <name>general.rpc.auth</name>
+        <value>root</value>
+    </property>
+    <property>
+        <name>general.rpc.token</name>
+        <value>test</value>
+    </property>
+    <property>
+        <name>instance.dfs.dir</name>
+        <value>hdfs://geowave-benchmark-manager:9000/accumulo</value>
+    </property>
+</configuration>
+EOT
 
-#Upload Accumulo JARs to HDFS
-hdfs dfs -mkdir -p /accumulo/lib
-hdfs dfs -put /opt/accumulo/lib/*.jar /accumulo/lib/
-
-
-#install geowave
-#https://geowave.s3.amazonaws.com/latest/standalone-installers/geowave_unix_2_0_2-SNAPSHOT.sh
-cd ~
-wget https://geowave.s3.amazonaws.com/2.0.1/standalone-installers/geowave_unix_2_0_1.sh
-chmod +x geowave_unix_2_0_1.sh
-sudo ./geowave_unix_2_0_1.sh <<EOF
-o
-/opt/geowave
-1,2,4,5,6,7,8,10,11,13,14,23,24,25,26,27,28,29,30,31,33,42,43
-EOF
-
+# Download and configure GeoWave
+wget https://s3.amazonaws.com/geowave-rpms/release-jars/JAR/geowave-tools-2.0.1-cdh5-accumulo1.7.jar -P /opt/geowave
+export GEOWAVE_HOME=/opt/geowave
 echo "export GEOWAVE_HOME=/opt/geowave" >> ~/.bashrc
 echo "export PATH=\$PATH:/opt/geowave/bin" >> ~/.bashrc
 source ~/.bashrc
 
-echo "export JAVA_OPTS='--illegal-access=warn'" >>~/.bashrc
-source ~/.bashrc
-
-# Increase ulimit for maximum open files
-sudo bash -c "echo '* soft nofile 32768' >> /etc/security/limits.conf"
-sudo bash -c "echo '* hard nofile 32768' >> /etc/security/limits.conf"
-
-# JVM-Warnings reduzieren
-echo "export JAVA_OPTS='--illegal-access=deny'" >>~/.bashrc
-source ~/.bashrc
-
-sudo mkdir -p /opt/geowave/logs
-sudo chown -R "$USER":"$USER" /opt/geowave
-sudo chmod -R 755 /opt/geowave
-source ~/.bashrc
-
-JAVA_OPTS="-Dlog4j.debug=true -Dlog4j.configuration=file:/opt/geowave/conf/log4j.properties"
-
-echo "Hadoop, ZooKeeper, Accumulo and GeoWave installation  complete!"
+echo "Hadoop, ZooKeeper, Accumulo, and GeoWave installation complete!"

@@ -29,7 +29,13 @@ ssh $SSH_USER@$GCP_IP "/opt/hadoop/sbin/start-dfs.sh"
 ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo init --instance-name test -u root --password test"
 ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo-cluster start"
 ````
-
+## older version of Hadoop and  Accumulo
+````
+ssh $SSH_USER@$GCP_IP "/opt/hadoop/bin/hdfs namenode -format"
+ssh $SSH_USER@$GCP_IP "/opt/hadoop/sbin/start-dfs.sh"
+ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/accumulo init --instance-name test --user root --password test"
+ssh $SSH_USER@$GCP_IP "/opt/accumulo/bin/start-all.sh"
+````
 ## Initilaize Geowave
 
 ### upload script in GeoWave JARs transfer script
