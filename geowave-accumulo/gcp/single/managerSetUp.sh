@@ -49,6 +49,57 @@ cd /opt/zookeeper
 cp conf/zoo_sample.cfg conf/zoo.cfg
 bin/zkServer.sh start
 
+# Add namenode-manager to /etc/hosts
+machine_name="geowave-benchmark-manager"
+ip_address=$(nslookup $machine_name | awk '/^Address: / { print $2 }')
+if ! grep -q "$ip_address $machine_name" /etc/hosts; then
+    echo "$ip_address $machine_name" | sudo tee -a /etc/hosts
+fi
+
+# Install Hadoop
+cd ~
+wget https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+tar -xvf hadoop-${HADOOP_VERSION}.tar.gz
+sudo mv hadoop-${HADOOP_VERSION} /opt/hadoop
+cd /opt/hadoop
+mkdir namenode
+echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> etc/hadoop/hadoop-env.sh
+bin/hadoop version
+
+# Configure Hadoop
+echo "<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://geowave-benchmark-manager:9000</value>
+    </property>
+</configuration>" > etc/hadoop/core-site.xml
+
+echo "<configuration>
+    <property>
+        <name>dfs.namenode.replication.min</name>
+        <value>1</value>
+    </property>
+    <property>
+        <name>dfs.blocksize</name>
+        <value>134217728</value>  <!-- Default block size -->
+    </property>
+</configuration>" > etc/hadoop/hdfs-site.xml
+
+echo "<configuration>
+    <property>
+        <name>yarn.acl.enable</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>yarn.admin.acl</name>
+        <value>*</value>
+    </property>
+</configuration>" > etc/hadoop/yarn-site.xml
+
+echo "export PDSH_RCMD_TYPE=ssh" >> etc/hadoop/hadoop-env.sh
+echo "export PDSH_RCMD_TYPE=ssh" >> ~/.bashrc
+export PDSH_RCMD_TYPE=ssh
+
 # Install Accumulo
 wget https://archive.apache.org/dist/accumulo/${ACCUMULO_VERSION}/accumulo-${ACCUMULO_VERSION}-bin.tar.gz
 tar -xvf accumulo-${ACCUMULO_VERSION}-bin.tar.gz
