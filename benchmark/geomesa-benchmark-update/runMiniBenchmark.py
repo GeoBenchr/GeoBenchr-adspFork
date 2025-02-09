@@ -54,6 +54,38 @@ def get_terraform_output(deployment = "multi"):
     os.chdir(original_dir)
     return output
 
+def execute_query(query_name, config):
+    query_config = config.get(query_name)
+    if not query_config or not query_config.get("query"):
+        print(f"Skipping '{query_name}' due to missing query definition.")
+        return
+    
+    query = query_config.get("query", "")
+    limit = query_config.get("limit", 50) if query_config.get("limit") is not None else 50
+    threads = query_config.get("threads", 1)
+    
+    #for random position placeholder in the queries
+    #need to handle polygonal area with 4 placeholders
+    if "{poslong}" in query or "{poslat}" in query:
+        poslong, poslat = generate_random_position_in_Berlin()
+        query = query.format(poslong=poslong, poslat=poslat)
+    
+    
+    final_query = f"geoserver query execution command -q \"{query}\""
+    if limit != -1:
+        final_query += f" -m {limit}"
+    
+    print(f"Executing: {final_query}")
+    start = time.time()
+    result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+    end = time.time()
+    duration = end - start
+    
+    with open("durations.csv", "a") as file:
+        file.write(f"{query_name},{limit},{start},{end},{duration}\n")
+    
+    print(result.stdout.decode())
+
 
 def execute_query(query_type, limit):
     try:
