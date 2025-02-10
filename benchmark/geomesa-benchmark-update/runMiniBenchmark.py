@@ -8,7 +8,10 @@ import subprocess
 import json
 import yaml
 
-
+def load_config(config_path="benchmark_conf.yaml"):
+    with open(config_path, "r") as file:
+        return yaml.safe_load(file)
+    
 def generate_random_position_in_Berlin():
     poslong = random.uniform(13.088346, 13.761160)
     poslat = random.uniform(52.338049, 52.675454)
@@ -54,7 +57,8 @@ def get_terraform_output(deployment = "multi"):
     os.chdir(original_dir)
     return output
 
-def execute_query(query_name, config):
+
+'''def execute_query(query_name, config):
     query_config = config.get(query_name)
     if not query_config or not query_config.get("query"):
         print(f"Skipping '{query_name}' due to missing query definition.")
@@ -69,6 +73,11 @@ def execute_query(query_name, config):
     if "{poslong}" in query or "{poslat}" in query:
         poslong, poslat = generate_random_position_in_Berlin()
         query = query.format(poslong=poslong, poslat=poslat)
+
+    if "{start_time}" in query or "{end_time}" in query:
+        start_time = '2023-07-01T07:00:00Z'
+        end_time = '2023-07-12T07:00:00Z'
+        query = query.format(start_time=start_time, end_time=end_time)
     
     
     final_query = f"geoserver query execution command -q \"{query}\""
@@ -86,6 +95,8 @@ def execute_query(query_name, config):
     
     print(result.stdout.decode())
 
+
+'''
 
 def execute_query(query_type, limit):
     try:
@@ -321,7 +332,14 @@ def execute_query(query_type, limit):
             case "get_trip_length":
                 # define start and end time for the query
                 ride_id = random.randint(1, 400)
-                
+                ##TODO: Write query
+                query = f"SELECT ride_id, ST_Length(trip) FROM cycling_data WHERE ride_id = {ride_id};"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
                 print(query)
                 start = time.time()
                 # get time after executing query
@@ -336,6 +354,14 @@ def execute_query(query_type, limit):
             case "get_trip_duration":
                 # define start and end time for the query
                 ride_id = random.randint(1, 400)
+
+                query = f"SELECT ride_id, MIN(timestamp), MAX(timestamp) FROM cycling_data WHERE ride_id = {ride_id};"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if limit == -1:
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
                
                 start = time.time()
                 # get time after executing query
@@ -349,7 +375,13 @@ def execute_query(query_type, limit):
             case "get_trip_speed":
                 # define start and end time for the query
                 ride_id = random.randint(1, 400)
-                
+                query = f"SELECT ride_id, ST_Length(trip) / (MAX(timestamp) - MIN(timestamp)) AS speed FROM cycling_data WHERE ride_id = {ride_id};"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if limit == -1:
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
                 start = time.time()
                 # get time after executing query
                 end = time.time()
@@ -362,6 +394,14 @@ def execute_query(query_type, limit):
             case "interval_around_timestamp":
                 # define start and end time for the query
                 start_time = "2023-07-01 00:00:00"
+
+                query = f"timestamp DURING {start_time}-PT30M/{start_time}+PT30M"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if limit == -1:
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
 
                 start = time.time()
                 # get time after executing query
@@ -377,6 +417,15 @@ def execute_query(query_type, limit):
                 start_time = "2023-07-01 00:00:00"
                 end_time = "2023-07-01 01:00:00"
                 poslong, poslat = generate_random_position_in_Berlin()
+
+                query = f"timestamp DURING {start_time}/{end_time} AND DWITHIN(geom, POINT({poslong} {poslat}), 5000, meters)"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if limit == -1:
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+
                 start = time.time()
                 # get time after executing query
                 end = time.time()
@@ -386,6 +435,28 @@ def execute_query(query_type, limit):
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 records = ""
                 print(records)
+            case "identifying_high_risk_areas":
+                poslong, poslat = generate_random_position_in_Berlin()
+                size = 0.1
+                query = f"BBOX(cycling_data.point_geom, 13.0, 52.0, 14.0, 53.0) AND severity >= 3"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                print(query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                # get time after executing query
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
+            
 
     except (Exception) as error:
         print("Error while connecting", error)
