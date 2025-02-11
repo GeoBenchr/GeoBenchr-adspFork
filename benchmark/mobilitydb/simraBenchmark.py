@@ -199,20 +199,32 @@ def execute_query(query="SELECT * FROM cycling_data", query_type="surrounding", 
     - query_type (str): Type of query to execute. It determines the benchmark being run.
     - limit (int): Maximum number of rows to return (used in specific cases).
 
-    Benchmarks:
+Benchmarks:
     - Spatial Queries:
       - "surrounding": Finds all points within a 5000m radius of a random point in Berlin.
       - "bounding_box": Finds all points within a dynamically generated bounding box near Berlin.
       - "polygonal_area": Finds all points inside a static polygon defined by random vertices in Berlin.
-      - "ride_traffic": Checks intersections between trips to identify overlapping rides.
       - "nearest_neighbor": Finds the closest point to a random position in Berlin.
       - "clustering": Groups data points into spatial clusters using K-Means.
 
+    - Trip/Trajectory Queries:
+      - "ride_traffic": Checks intersections between trips to identify overlapping rides.
+      - "trajectory_analysis": Identifies intersections between trajectories and analyzes paths.
+      - "trajectory_length": Calculates the total length of each trajectory.
+      - "trajectory_duration": Computes the duration of each trajectory.
+      - "trajectory_speed": Determines the average speed of each trajectory.
+      - "trajectory_density": Analyzes the density of points along each trajectory.
+
     - Spatiotemporal Queries:
-      - "time_interval": Filters data by a specific time range (e.g., data collected within a year).
+      - "time_interval": Filters data by a specific time range.
       - "spatiotemporal": Combines spatial (points within a radius) and temporal (timestamps) filters.
       - "interval_around_timestamp": Finds data points within 1 hour of a specific timestamp.
-      - "trajectory_analysis": Identifies intersections between trajectories and analyzes paths.
+      - "trajectory_within_time_interval": Filters trajectories that exist entirely within a given time range.
+      - "count_points_in_time_range": Counts the number of points collected during a specific time interval.
+      - "temporal_changes_in_region": Filters points in a specific area to track their changes over time.
+      - "average_speed_in_time_range": Calculates the average speed of trips occurring within a specific time frame.
+      - "event_duration_in_region": Measures the duration of events (e.g., trips) occurring in a defined region.
+      - "peak_activity_times": Identifies the most active time ranges in the dataset.
 
     Returns:
     Writes execution duration and results to "durations.csv" for benchmarking purposes.
@@ -313,6 +325,60 @@ def execute_query(query="SELECT * FROM cycling_data", query_type="surrounding", 
                     WHERE
                         a.ride_id = {ride_id}
                         AND ST_Intersects(a.trip, b.trip)
+                    LIMIT {limit};
+                """
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
+
+            case "trajectory_length":
+                # Calculates the total length of each trajectory
+                query_addition = f"""
+                    SELECT
+                        ride_id,
+                        ST_Length(trip::geography) AS length_meters
+                    FROM
+                        {query_table}
+                    LIMIT {limit};
+                """
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
+
+            case "trajectory_duration":
+                # Computes the duration of each trajectory
+                query_addition = f"""
+                    SELECT
+                        ride_id,
+                        EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) AS duration_seconds
+                    FROM
+                        cycling_data
+                    GROUP BY
+                        ride_id
+                    LIMIT {limit};
+                """
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
+
+            case "trajectory_speed":
+                # Determines the average speed of each trajectory
+                query_addition = f"""
+                    SELECT
+                        ride_id,
+                        ST_Length(trip::geography) / NULLIF(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0) AS avg_speed_mps
+                    FROM
+                        {query_table}
+                    GROUP BY
+                        ride_id
+                    LIMIT {limit};
+                """
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
+
+            case "trajectory_density":
+                # Analyzes the density of points along each trajectory
+                query_addition = f"""
+                    SELECT
+                        ride_id,
+                        COUNT(*) / NULLIF(ST_Length(ST_MakeLine(point_geom ORDER BY timestamp)::geography), 0) AS points_per_meter
+                    FROM
+                        cycling_data
+                    GROUP BY
+                        ride_id
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
