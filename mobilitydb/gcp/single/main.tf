@@ -36,7 +36,7 @@ resource "google_compute_instance" "mobdb_manager" {
   boot_disk {
     initialize_params {
       image = "ubuntu-2204-lts"
-      size = 100 # GB
+      size = 50 # GB
     }
   }
   network_interface {

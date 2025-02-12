@@ -9,6 +9,10 @@ import sys
 import random
 from datetime import datetime, timedelta
 
+if len(sys.argv) != 4:
+    print("Usage: python3 script_name.py <hostname> <portnum> <deployment>")
+    sys.exit(1)
+
 # Configuration
 hostname = sys.argv[1]
 portnum = sys.argv[2]
@@ -182,7 +186,7 @@ def execute_and_log_query(connection, base_query, query_addition, query_type, li
     cursor.execute(full_query)
     end = time.time()
     duration = end - start
-    with open("durations.csv", "a") as file:
+    with open("mobilitydb-simra-durations.csv", "a") as file:
         file.write(f"{query_type},{limit},{start},{end},{duration}\n")
     records = cursor
     print(records)
@@ -219,7 +223,6 @@ Benchmarks:
       - "time_interval": Filters data by a specific time range.
       - "spatiotemporal": Combines spatial (points within a radius) and temporal (timestamps) filters.
       - "interval_around_timestamp": Finds data points within 1 hour of a specific timestamp.
-      - "trajectory_within_time_interval": Filters trajectories that exist entirely within a given time range.
       - "count_points_in_time_range": Counts the number of points collected during a specific time interval.
       - "temporal_changes_in_region": Filters points in a specific area to track their changes over time.
       - "average_speed_in_time_range": Calculates the average speed of trips occurring within a specific time frame.
@@ -291,7 +294,7 @@ Benchmarks:
                 num_clusters = 5  # Define the number of clusters
                 query_addition = f"""
                     SELECT
-                        ST_ClusterKMeans(point_geom, {num_clusters}) OVER () AS cluster_id,
+                        ST_ClusterKMeans(point_geom::geometry, {num_clusters}) OVER () AS cluster_id,
                         *
                     FROM
                         cycling_data
@@ -317,14 +320,14 @@ Benchmarks:
                     SELECT
                         a.ride_id AS trip_id_1,
                         b.ride_id AS trip_id_2,
-                        ST_Intersection(a.trip, b.trip) AS intersection_geom
+                        ST_Intersection(trajectory(a.trip), trajectory(b.trip)) AS intersection_geom
                     FROM
                         {query_table} a
                     JOIN
                         {query_table} b ON a.ride_id <> b.ride_id
                     WHERE
                         a.ride_id = {ride_id}
-                        AND ST_Intersects(a.trip, b.trip)
+                        AND ST_Intersects(trajectory(a.trip), trajectory(b.trip))
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
@@ -360,11 +363,9 @@ Benchmarks:
                 query_addition = f"""
                     SELECT
                         ride_id,
-                        ST_Length(trip::geography) / NULLIF(EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))), 0) AS avg_speed_mps
+                        length(trip) / NULLIF(EXTRACT(EPOCH FROM duration(trip)), 0) AS avg_speed_mps
                     FROM
                         {query_table}
-                    GROUP BY
-                        ride_id
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
@@ -374,7 +375,7 @@ Benchmarks:
                 query_addition = f"""
                     SELECT
                         ride_id,
-                        COUNT(*) / NULLIF(ST_Length(ST_MakeLine(point_geom ORDER BY timestamp)::geography), 0) AS points_per_meter
+                        COUNT(*) / NULLIF(ST_Length(ST_MakeLine(point_geom::geometry ORDER BY timestamp)::geography), 0) AS points_per_meter
                     FROM
                         cycling_data
                     GROUP BY
@@ -408,17 +409,8 @@ Benchmarks:
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
                     WHERE timestamp BETWEEN
-                        '{start_time}' - INTERVAL '1 hour' AND
-                        '{start_time}' + INTERVAL '1 hour'
-                    LIMIT {limit};
-                """
-                execute_and_log_query(connection, query, query_addition, query_type, limit)
-
-            case "trajectory_within_time_interval":
-                # Filters trajectories that exist entirely within a given time range
-                start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
-                query_addition = f"""
-                    WHERE trip && tstzrange('{start_time}', '{end_time}')
+                        TIMESTAMP '{start_time}' - INTERVAL '1 hour' AND
+                        TIMESTAMP '{start_time}' + INTERVAL '1 hour'
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
@@ -434,27 +426,38 @@ Benchmarks:
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
             case "temporal_changes_in_region":
-                #  Filters points in a specific area to track their changes over time
+                # Filters points in a specific area to track their changes over time
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 poslong, poslat = generate_random_position_in_Berlin()
                 query_addition = f"""
-                    WHERE timestamp BETWEEN '{start_time}' AND '{end_time}'
-                    AND ST_Within(
-                        cycling_data.point_geom,
-                        ST_Buffer(ST_SetSRID(ST_MakePoint({poslong}, {poslat}), 4326), 0.05)
-                    )
-                    LIMIT {limit};
-                """
+                        WHERE timestamp BETWEEN '{start_time}' AND '{end_time}'
+                        AND ST_Within(
+                            cycling_data.point_geom::geometry,
+                            ST_Buffer(ST_SetSRID(ST_MakePoint({poslong}, {poslat}), 4326), 0.05)
+                        )
+                        LIMIT {limit};
+                    """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
+
 
             case "average_speed_in_time_range":
                 # Calculates the average speed of trips occurring within a specific time frame
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
-                    SELECT AVG(speed)
-                    FROM cycling_data
-                    WHERE timestamp BETWEEN '{start_time}' AND '{end_time}';
-                """
+                        SELECT AVG(distance / NULLIF(time_diff, 0)) AS avg_speed_mps
+                        FROM (
+                            SELECT
+                                ride_id,
+                                ST_Length(ST_MakeLine(point_geom::geometry ORDER BY timestamp)::geography) AS distance,  -- Distance in meters
+                                EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) AS time_diff  -- Time in seconds
+                            FROM
+                                cycling_data
+                            WHERE
+                                timestamp BETWEEN '{start_time}' AND '{end_time}'
+                            GROUP BY
+                                ride_id
+                        ) subquery;
+                    """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
             case "event_duration_in_region":
@@ -472,7 +475,7 @@ Benchmarks:
                     )
                     GROUP BY ride_id;
                 """
-                execute_and_log_query(connection, query, query_addition, query_type, limit)
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
 
             case "peak_activity_times":
                 # Most active time ranges in the dataset
@@ -517,19 +520,28 @@ def run_threads(num_threads, query, query_type, limit):
 #initial_insert()
 
 
-#Configure the benchmark
-#run_threads(#Number of parallel threads, default query to use, query type, limit)
-run_threads(2, default_query, "surrounding", 50)
-run_threads(2, default_query, "ride_traffic", 50)
-run_threads(2, default_query, "intersections", 50)
-run_threads(2, default_query, "insert_ride", 10)
-run_threads(1, default_query, "bulk_insert_rides", 10)
-run_threads(2, default_query, "bounding_box", 50)
-run_threads(2, default_query, "polygonal_area", 50)
-run_threads(2, default_query, "time_interval", 50)
-run_threads(2, default_query, "get_trip", 50)
-run_threads(2, default_query, "get_trip_length", 50)
-run_threads(2, default_query, "get_trip_duration", 50)
-run_threads(2, default_query, "get_trip_speed", 50)
-#run_threads(2, default_query, "interval_around_timestamp", 50)
+###################################### Configure the benchmark ######################################
+# --------------------- SPATIAL QUERIES ---------------------
+#run_threads(2, default_query, "surrounding", 50)
+#run_threads(2, default_query, "bounding_box", 50)
+#run_threads(2, default_query, "polygonal_area", 50)
+#run_threads(2, default_query, "nearest_neighbor", 50)
+#run_threads(2, default_query, "clustering", 50)
+
+# --------------------- TRIP/TRAJECTORY QUERIES ---------------------
+#run_threads(2, default_query, "ride_traffic", 50)
+#run_threads(2, default_query, "trajectory_analysis", 50)
+#run_threads(2, default_query, "trajectory_length", 50)
+#run_threads(2, default_query, "trajectory_duration", 50)
+#run_threads(2, default_query, "trajectory_speed", 50)
+#run_threads(2, default_query, "trajectory_density", 50)
+
+# --------------------- SPATIOTEMPORAL QUERIES ---------------------
+#run_threads(2, default_query, "time_interval", 50)
 #run_threads(2, default_query, "spatiotemporal", 50)
+#run_threads(2, default_query, "interval_around_timestamp", 50)
+#run_threads(2, default_query, "count_points_in_time_range", 50)
+#run_threads(2, default_query, "temporal_changes_in_region", 50)
+#run_threads(2, default_query, "average_speed_in_time_range", 50)
+#run_threads(2, default_query, "event_duration_in_region", 50)
+run_threads(2, default_query, "peak_activity_times", 50)
