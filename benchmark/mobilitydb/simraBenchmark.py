@@ -19,9 +19,9 @@ portnum = sys.argv[2]
 deployment = "multi" if len(sys.argv) < 4 else sys.argv[3]
 default_query = "SELECT * FROM cycling_data"
 
-#Timeframe for spatiotemporal queries
-period_start = "2023-07-01 00:00:00"
-period_end = "2023-07-31 23:59:59"
+# Timeframe for spatiotemporal queries, this has to be changed depending on the dataset you use
+period_start = "2021-03-31 17:22:20"
+period_end = "2023-05-31 18:33:25"
 duration = timedelta(hours=2)
 
 # Utility functions: Generate random position in Berlin
@@ -34,6 +34,10 @@ def generate_random_position_in_Berlin():
 def generate_random_time_interval(period_start, period_end, duration):
     """
     Generates a random start and end time within a specified period and duration.
+    You can query for the time interval of your dataset with this:
+
+        SELECT MIN(startTimestamp(trip)) AS begin, MAX(endTimestamp(trip)) AS end
+        FROM cycling_trips;
 
     :param period_start: Start of the period as a string in 'YYYY-MM-DD HH:MM:SS' format.
     :param period_end: End of the period as a string in 'YYYY-MM-DD HH:MM:SS' format.
@@ -70,7 +74,7 @@ def execute_and_log_query(connection, base_query, query_addition, query_type, li
     cursor.execute(full_query)
     end = time.time()
     duration = end - start
-    with open("mobilitydb-simra-durations.csv", "a") as file:
+    with open("mobilitydb-simra-durations-one-month-of-data.csv", "a") as file:
         file.write(f"{query_type},{limit},{start},{end},{duration}\n")
     records = cursor
     print(records)
@@ -124,7 +128,7 @@ Benchmark:
       - "trips_starting_after_timestamp": Retrieves trips starting after a random timestamp.
 
     Returns:
-    Writes execution duration and results to "mobilitydb-simra-durations.csv" for benchmarking purposes.
+    Writes execution duration and results to "mobilitydb-simra-durations-one-month-of-data.csv" for benchmarking purposes.
     """
 
 
@@ -141,7 +145,7 @@ Benchmark:
 
         match query_type:
             ########################### SPATIAL QUERIES ###########################
-            case "surrounding":
+            case "spatial_surrounding":
                 poslong, poslat = generate_random_position_in_Berlin()
                 query_addition = f"""
                     WHERE ST_DWithin(
@@ -152,7 +156,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "bounding_box":
+            case "spatial_bounding_box":
                 poslong, poslat = generate_random_position_in_Berlin()
                 query_addition = f"""
                     WHERE ST_Intersects(
@@ -162,7 +166,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "polygonal_area":
+            case "spatial_polygonal_area":
                 lat1, lon1 = generate_random_position_in_Berlin()
                 lat2, lon2 = generate_random_position_in_Berlin()
                 lat3, lon3 = generate_random_position_in_Berlin()
@@ -177,7 +181,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "nearest_neighbor":
+            case "spatial_nearest_neighbor":
                 poslong, poslat = generate_random_position_in_Berlin()
                 query_addition = f"""
                     ORDER BY
@@ -186,7 +190,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "clustering":
+            case "spatial_clustering":
                 num_clusters = 5  # Define the number of clusters
                 query_addition = f"""
                     SELECT
@@ -198,7 +202,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query_addition, "", query_type, limit)
 
-            case "line_proximity":
+            case "spatial_line_proximity":
                 # Define a random line using two points in Berlin
                 poslong1, poslat1 = generate_random_position_in_Berlin()
                 poslong2, poslat2 = generate_random_position_in_Berlin()
@@ -218,7 +222,7 @@ Benchmark:
 
     ########################### TRIP/TRAJECTORY QUERIES ###########################
 
-            case "ride_traffic":
+            case "spatial_ride_traffic":
                 ride_id = random.randint(1, 596)
                 query_addition = f"""
                     SELECT a.ride_id AS trip_id_1, b.ride_id AS trip_id_2, a.trip && b.trip AS intersects
@@ -229,72 +233,60 @@ Benchmark:
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "trajectory_intersections ":
-                ride_id = random.randint(1, 596)
+            case "spatial_trajectory_intersections":
+                # Calculates intersection of two trajectories
+                ride_id = random.randint(0, 1000)
                 query_addition = f"""
                     SELECT
                         a.ride_id AS trip_id_1,
                         b.ride_id AS trip_id_2,
-                        ST_Intersection(trajectory(a.trip), trajectory(b.trip)) AS intersection_geom
+                        ST_Intersection(a.trip::geometry, b.trip::geometry) AS intersection_geom
                     FROM
                         {query_table} a
                     JOIN
                         {query_table} b ON a.ride_id <> b.ride_id
                     WHERE
                         a.ride_id = {ride_id}
-                        AND ST_Intersects(trajectory(a.trip), trajectory(b.trip))
+                        AND ST_Intersects(a.trip::geometry, b.trip::geometry)
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "trip_length":
-                # Calculates the total length of each trajectory
+
+            case "spatial_rip_length":
+                # Calculates the total length of each trip
                 query_addition = f"""
                     SELECT
                         ride_id,
-                        ST_Length(trip::geography) AS length_meters
+                        lenght(trip)/1000 AS length_kilometers
                     FROM
                         {query_table}
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "trip_duration":
-                # Computes the duration of each trajectory
+            case "temporal_trip_duration":
+                # Computes the duration of each trip
                 query_addition = f"""
                     SELECT
                         ride_id,
                         EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) AS duration_seconds
                     FROM
-                        cycling_data
+                        {query_table}
                     GROUP BY
                         ride_id
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "trajectory_speed":
-                # Determines the average speed of each trajectory
+            case "spatiotemporal_avg_trip_speed":
+                # Determines the average speed of each trip
                 query_addition = f"""
                     SELECT
                         ride_id,
                         length(trip) / NULLIF(EXTRACT(EPOCH FROM duration(trip)), 0) AS avg_speed_mps
                     FROM
                         {query_table}
-                    LIMIT {limit};
-                """
-                execute_and_log_query(connection, "", query_addition, query_type, limit)
-
-            case "trajectory_density":
-                # Analyzes the density of points along each trajectory
-                query_addition = f"""
-                    SELECT
-                        ride_id,
-                        COUNT(*) / NULLIF(ST_Length(ST_MakeLine(point_geom::geometry ORDER BY timestamp)::geography), 0) AS points_per_meter
-                    FROM
-                        cycling_data
-                    GROUP BY
-                        ride_id
                     LIMIT {limit};
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
@@ -340,7 +332,7 @@ Benchmark:
 
 
     ########################### SPATIOTEMPORAL QUERIES ###########################
-            case "time_interval":
+            case "temporal_time_interval":
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
                     WHERE timestamp BETWEEN '{start_time}' AND '{end_time}' LIMIT {limit};
@@ -360,7 +352,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "interval_around_timestamp":
+            case "temporal_interval_around_timestamp":
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
                     WHERE timestamp BETWEEN
@@ -370,7 +362,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
-            case "count_points_in_time_range":
+            case "temporal_count_points_in_time_range":
                 # Counts the number of points collected during a specific time interval
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
@@ -380,7 +372,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "average_speed_in_time_range":
+            case "spatiotemporal_average_speed_in_time_range":
                 # Calculates the average speed of trips occurring within a specific time frame
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
@@ -388,8 +380,8 @@ Benchmark:
                         FROM (
                             SELECT
                                 ride_id,
-                                ST_Length(ST_MakeLine(point_geom::geometry ORDER BY timestamp)::geography) AS distance,  -- Distance in meters
-                                EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) AS time_diff  -- Time in seconds
+                                ST_Length(ST_MakeLine(point_geom::geometry ORDER BY timestamp)::geography) AS distance,  
+                                EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) AS time_diff  
                             FROM
                                 cycling_data
                             WHERE
@@ -400,7 +392,7 @@ Benchmark:
                     """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "event_duration_in_region":
+            case "spatiotemporal_event_duration_in_region":
                 # Measures the duration of events (e.g., trips) occurring in a defined region
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 poslong, poslat = generate_random_position_in_Berlin()
@@ -417,7 +409,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "peak_activity_times":
+            case "temporal_peak_activity_times":
                 # Most active time ranges in the dataset
                 query_addition = f"""
                     SELECT date_trunc('hour', timestamp) AS hour, COUNT(*)
@@ -428,7 +420,7 @@ Benchmark:
                 """
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
-            case "recurring_time_queries":
+            case "spatiotemporal_recurring_time_queries":
                 # Check if a rider_id has points within 50m of the start point daily for a week
                 rider_id = random.randint(1, 1000)
                 start_time, _ = generate_random_time_interval(period_start, period_end, duration=timedelta(days=7))
@@ -464,7 +456,7 @@ Benchmark:
                 execute_and_log_query(connection, "", query_addition, query_type, limit)
 
 
-            case "historical_spatiotemporal":
+            case "spatiotemporal_historical_spatiotemporal":
                 # Retrieve past data for a specific location and time range
                 start_time, end_time = generate_random_time_interval(period_start, period_end, duration)
                 poslong, poslat = generate_random_position_in_Berlin()
@@ -481,9 +473,9 @@ Benchmark:
 
 ################################ Temporal queries ################################
 
-            case "points_after_timestamp":
+            case "temporal_points_after_timestamp":
                 # Retrieves all points with a timestamp greater than a random timestamp
-                random_timestamp = generate_random_time_interval(period_start, period_end, duration)
+                random_timestamp, _ = generate_random_time_interval(period_start, period_end, duration)
                 query_addition = f"""
                         WHERE timestamp > '{random_timestamp}'
                         LIMIT {limit};
@@ -491,14 +483,16 @@ Benchmark:
                 execute_and_log_query(connection, query, query_addition, query_type, limit)
 
 
-            case "trips_starting_after_timestamp":
+            case "temporal_trips_starting_after_timestamp":
                 # Retrieves all trips that start after a random timestamp
-                random_timestamp = generate_random_time_interval(period_start, period_end, duration)
-                query_addition = f"""
-                        WHERE trip && tstzrange('{random_timestamp}', NULL)
-                        LIMIT {limit};
-                    """
-                execute_and_log_query(connection, query, query_addition, query_type, limit)
+                random_timestamp, _ = generate_random_time_interval(period_start, period_end, duration)
+                query_addition = query_addition = f"""
+                    SELECT * 
+                    FROM {query_table}
+                    WHERE startTimestamp(trip) > '{random_timestamp}'
+                    LIMIT {limit};
+                """
+                execute_and_log_query(connection, "", query_addition, query_type, limit)
 
 
 
@@ -527,34 +521,35 @@ def run_threads(num_threads, query, query_type, limit):
         threads.clear()
 
 ###################################### Configure the benchmark ######################################
+
 # --------------------- SPATIAL QUERIES ---------------------
-#run_threads(2, default_query, "surrounding", 500)
-#run_threads(2, default_query, "bounding_box", 50)
-#run_threads(2, default_query, "polygonal_area", 50)
-#run_threads(2, default_query, "nearest_neighbor", 50)
-#run_threads(2, default_query, "clustering", 50)
-#run_threads(2, default_query, "line_proximity", 50)
-#run_threads(2, default_query, "geometry_intersection", 50)
+run_threads(2, default_query, "surrounding", 50)
+run_threads(2, default_query, "bounding_box", 50)
+run_threads(2, default_query, "clustering", 50)
+run_threads(2, default_query, "polygonal_area", 50)
+run_threads(2, default_query, "attribute_value_filter_points", 50)
+run_threads(2, default_query, "nearest_neighbor", 50)
 
 # --------------------- TRIP/TRAJECTORY QUERIES ---------------------
-#run_threads(2, default_query, "ride_traffic", 50)
-#run_threads(2, default_query, "trajectory_analysis", 50)
-#run_threads(2, default_query, "trajectory_length", 50)
-#run_threads(2, default_query, "trajectory_duration", 50)
-#run_threads(2, default_query, "trajectory_speed", 50)
-#run_threads(2, default_query, "trajectory_density", 50)
-#run_threads(2, default_query, "attribute_value_filter", 50)
-run_threads(2, default_query, "min_max_summaries", 50)
-
+run_threads(2, default_query, "line_proximity", 50)
+run_threads(2, default_query, "ride_traffic", 50)
+run_threads(2, default_query, "trajectory_intersections", 50)
+run_threads(2, default_query, "trip_length", 50)
+run_threads(2, default_query, "trip_duration", 50)
+run_threads(2, default_query, "avg_trip_speed", 50)
+run_threads(2, default_query, "attribute_value_filter_trips", 50)
 
 # --------------------- SPATIOTEMPORAL QUERIES ---------------------
-#run_threads(2, default_query, "time_interval", 50)
-#run_threads(2, default_query, "spatiotemporal", 50)
-#run_threads(2, default_query, "interval_around_timestamp", 50)
-#run_threads(2, default_query, "count_points_in_time_range", 50)
-#run_threads(2, default_query, "temporal_changes_in_region", 50)
-#run_threads(2, default_query, "average_speed_in_time_range", 50)
-#run_threads(2, default_query, "event_duration_in_region", 50)
-#run_threads(2, default_query, "peak_activity_times", 50)
-#run_threads(2, default_query, "recurring_time_queries", 50)
-#run_threads(2, default_query, "historical_spatiotemporal", 50)
+run_threads(2, default_query, "time_interval", 50)
+run_threads(2, default_query, "spatiotemporal_surrounding", 50)
+run_threads(2, default_query, "interval_around_timestamp", 50)
+run_threads(2, default_query, "count_points_in_time_range", 50)
+run_threads(2, default_query, "average_speed_in_time_range", 50)
+run_threads(2, default_query, "event_duration_in_region", 50)
+run_threads(2, default_query, "peak_activity_times", 50)
+run_threads(2, default_query, "recurring_time_queries", 50)
+run_threads(2, default_query, "historical_spatiotemporal", 50)
+
+# --------------------- TEMPORAL QUERIES ---------------------
+run_threads(2, default_query, "points_after_timestamp", 50)
+run_threads(2, default_query, "trips_starting_after_timestamp", 50)
