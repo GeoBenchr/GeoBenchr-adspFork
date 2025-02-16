@@ -74,7 +74,7 @@ def execute_and_log_query(connection, base_query, query_addition, query_type, li
     cursor.execute(full_query)
     end = time.time()
     duration = end - start
-    with open("mobilitydb-simra-durations-one-month-of-data.csv", "a") as file:
+    with open("mobilitydb-simra-durations.csv", "a") as file:
         file.write(f"{query_type},{limit},{start},{end},{duration}\n")
     records = cursor
     print(records)
@@ -128,7 +128,7 @@ Benchmark:
       - "trips_starting_after_timestamp": Retrieves trips starting after a random timestamp.
 
     Returns:
-    Writes execution duration and results to "mobilitydb-simra-durations-one-month-of-data.csv" for benchmarking purposes.
+    Writes execution duration and results to "mobilitydb-simra-durations.csv" for benchmarking purposes.
     """
 
 
@@ -523,33 +523,33 @@ def run_threads(num_threads, query, query_type, limit):
 ###################################### Configure the benchmark ######################################
 
 # --------------------- SPATIAL QUERIES ---------------------
-run_threads(2, default_query, "surrounding", 50)
-run_threads(2, default_query, "bounding_box", 50)
-run_threads(2, default_query, "clustering", 50)
-run_threads(2, default_query, "polygonal_area", 50)
+run_threads(2, default_query, "spatial_surrounding", 50)
+run_threads(2, default_query, "spatial_bounding_box", 50)
+#run_threads(2, default_query, "spatial_clustering", 50)
+run_threads(2, default_query, "spatial_polygonal_area", 50)
 run_threads(2, default_query, "attribute_value_filter_points", 50)
-run_threads(2, default_query, "nearest_neighbor", 50)
+run_threads(2, default_query, "spatial_nearest_neighbor", 50)
 
 # --------------------- TRIP/TRAJECTORY QUERIES ---------------------
-run_threads(2, default_query, "line_proximity", 50)
-run_threads(2, default_query, "ride_traffic", 50)
-run_threads(2, default_query, "trajectory_intersections", 50)
-run_threads(2, default_query, "trip_length", 50)
-run_threads(2, default_query, "trip_duration", 50)
-run_threads(2, default_query, "avg_trip_speed", 50)
+run_threads(2, default_query, "spatial_line_proximity", 50)
+run_threads(2, default_query, "spatial_ride_traffic", 50)
+run_threads(2, default_query, "spatial_trajectory_intersections", 50)
+run_threads(2, default_query, "spatial_rip_length", 50)
+run_threads(2, default_query, "temporal_trip_duration", 50)
+run_threads(2, default_query, "spatiotemporal_avg_trip_speed", 50)
 run_threads(2, default_query, "attribute_value_filter_trips", 50)
 
 # --------------------- SPATIOTEMPORAL QUERIES ---------------------
-run_threads(2, default_query, "time_interval", 50)
+run_threads(2, default_query, "temporal_time_interval", 50)
 run_threads(2, default_query, "spatiotemporal_surrounding", 50)
-run_threads(2, default_query, "interval_around_timestamp", 50)
-run_threads(2, default_query, "count_points_in_time_range", 50)
-run_threads(2, default_query, "average_speed_in_time_range", 50)
-run_threads(2, default_query, "event_duration_in_region", 50)
-run_threads(2, default_query, "peak_activity_times", 50)
-run_threads(2, default_query, "recurring_time_queries", 50)
-run_threads(2, default_query, "historical_spatiotemporal", 50)
+run_threads(2, default_query, "temporal_interval_around_timestamp", 50)
+run_threads(2, default_query, "temporal_count_points_in_time_range", 50)
+run_threads(2, default_query, "spatiotemporal_average_speed_in_time_range", 50)
+run_threads(2, default_query, "spatiotemporal_event_duration_in_region", 50)
+run_threads(2, default_query, "temporal_peak_activity_times", 50)
+run_threads(2, default_query, "spatiotemporal_recurring_time_queries", 50)
+run_threads(2, default_query, "spatiotemporal_historical_spatiotemporal", 50)
 
 # --------------------- TEMPORAL QUERIES ---------------------
-run_threads(2, default_query, "points_after_timestamp", 50)
-run_threads(2, default_query, "trips_starting_after_timestamp", 50)
+run_threads(2, default_query, "temporal_points_after_timestamp", 50)
+run_threads(2, default_query, "temporal_trips_starting_after_timestamp", 50)
