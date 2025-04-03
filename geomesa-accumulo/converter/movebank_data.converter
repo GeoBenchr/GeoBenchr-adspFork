@@ -1,22 +1,22 @@
 geomesa: {
   converters: {
-	  "event-data" = {
-	        type   = "delimited-text",
-	        format = "CSV",
-	        options {
-	            skip-lines = 1
-	            delimiter = ","
-	        }
-	        id-field = "uuid()",
-	        fields = [
-	            { name = "timestamp", transform = "dateHourMinuteSecondMillis($1)" },
-				{ name = "lon", transform = "$2::double" },
-			    { name = "lat", transform = "$3::double" },
-	            { name = "geom", transform = "point($lon, $lat)" },
-	            { name = "individual_id", transform = "$4::long" },
-	            { name = "tag_id", transform = "$5::long" },
-	            { name = "dataset_id", transform = "$6::long" }
-	        ]
-	    }
+    movebank-converter = {
+      type   = "delimited-text",
+      format = "CSV",
+      options {
+        delimiter = ","
+      }
+      id-field = "uuid()",
+      fields = [
+        { name = "timestamp", transform = "dateHourMinuteSecondMillis($1)" },
+        { name = "lat", transform = "$2::double" },
+        { name = "lon", transform = "$3::double" },
+        { name = "geom", transform = "point($lon, $lat)" },
+        { name = "individualId", transform = "$4::int" },
+        { name = "tagId", transform = "$5::int" },
+        { name = "datasetId", transform = "$6::int" }
+        { name = "index", transform = "$7::double" }
+      ]
+    }
   }
 }
