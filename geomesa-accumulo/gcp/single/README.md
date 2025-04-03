@@ -63,7 +63,7 @@ ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo;yes | bin/install-dependencies.s
 ```
 Here we create SimpleFeatureType schemas, which GeoMesa uses for storing spatiotemporal data. First we create one for point data, and then trip(line) data. However, GeoMesa does not offer the same kind of support for moving points when compared to GeoMesa's `tgeogpoint`.
 ```
-ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "timestamp:Date,lon:Double,lat:Double,geom:Point:srid=4326,individual_id:Integer,tag_id:Integer,dataset_id:Integer" -f movebank_data'
+ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "timestamp:Date,lon:Double,lat:Double,geom:Point:srid=4326,individualId:Integer,tagId:Integer,datasetId:Integer,index:Double" -f movebank_data'
 
 ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "ride_id:Integer:index=full,rider_id:Integer:index=full,latitude:Double,longitude:Double,geom:Point:srid=4326,x:Double,y:Double,z:Double,timestamp:Date" -f ride_data'
 
