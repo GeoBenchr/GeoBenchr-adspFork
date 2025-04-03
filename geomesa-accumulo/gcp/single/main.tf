@@ -1,4 +1,4 @@
-# main.tf
+# main_local_ssd.tf
 
 provider "google" {
   project = var.project

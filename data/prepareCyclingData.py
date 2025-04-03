@@ -228,10 +228,10 @@ def create_postgis_trip_data():
             with open(output_file, 'a') as file:
                 file.write(write_data)
 
-#merge_files("SimRa")
-#trim_csv_files()
-#convert_timestamp()
-#create_geomesa_data()
+merge_files("SimRa")
+trim_csv_files()
+convert_timestamp()
+create_geomesa_data()
 #create_trip_data()
 #create_geomesa_trip_data()
-create_postgis_trip_data()
+#create_postgis_trip_data()
