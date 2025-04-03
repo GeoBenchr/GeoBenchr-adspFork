@@ -110,6 +110,7 @@ public class Main {
                     it.close();
                 }
             }
+                // TODO: Fix this, as it currently outputs the same number of features
                 int count = allFeatures.size();
                 int count2 = limitedFeatures.size();
                 System.out.println("Number of selected features:" + count+ " ,"+count2);

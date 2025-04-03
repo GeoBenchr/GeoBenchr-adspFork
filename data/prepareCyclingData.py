@@ -4,6 +4,8 @@ from datetime import datetime
 import os
 import csv
 import random
+import sys
+csv.field_size_limit(sys.maxsize)
 
 ride_id = 0
 def merge_files(directory_path):
@@ -16,9 +18,7 @@ def merge_files(directory_path):
     for filename in files:
         if filename.__contains__("Profiles"):
             continue
-        print("file count: " + str(file_count))
         with open(filename, 'r') as file:
-            print("Reading data from file: " + filename)
             rider_id = random.randint(1, 30)
             count = 0
             for line in file:
@@ -193,7 +193,7 @@ def create_geomesa_trip_data():
                     #finish the strings and arrays, write them, and then empty them
                     #remove the last char from lat_string and long_string
                     add_string = add_string[:-1]+")"
-                    time_list = time_list[:-1]+"\""
+                    time_list = time_list[:-2]+"\""
                     string_to_write = multiline + add_string+")"
                     write_data = f"{ride_id};{rider_id};{string_to_write};{time_list}\n"
                     
@@ -206,16 +206,32 @@ def create_geomesa_trip_data():
                     write_data = ""
             #write the last lines after file ends
             add_string = add_string[:-1]+")"
-            time_list = time_list[:-1]+"\""
+            time_list = time_list[:-2]+"\""
             string_to_write = multiline + add_string+")"
             write_data = f"{ride_id};{rider_id};{string_to_write};{time_list}\n"
             with open(output_file, 'a') as file:
                 file.write(write_data)
         print(f'Geomesa trip data written to {output_file}')
         
-merge_files("SimRa")
-trim_csv_files()
-convert_timestamp()
-create_geomesa_data()
-create_trip_data()
-create_geomesa_trip_data()
+def create_postgis_trip_data():
+    files = glob.glob('geomesa_trips*')
+    for input_file in files:
+        output_file = 'postgis_trips_' + input_file[-12:]
+        with open(input_file, 'r') as file:
+            write_data = ""
+            #read as csv file
+            filedata = csv.reader(file, delimiter=';')
+            for line in filedata:
+                timearray = "{"+line[3]+"}"
+                #write the data to the new file
+                write_data += f"{line[0]};{line[1]};{line[2]};{timearray}\n"
+            with open(output_file, 'a') as file:
+                file.write(write_data)
+
+#merge_files("SimRa")
+#trim_csv_files()
+#convert_timestamp()
+#create_geomesa_data()
+#create_trip_data()
+#create_geomesa_trip_data()
+create_postgis_trip_data()
