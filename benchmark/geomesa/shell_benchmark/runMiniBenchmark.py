@@ -6,8 +6,26 @@ import csv
 import sys
 import subprocess
 import json
-import yaml
+from datetime import datetime, timedelta
+#import yaml
 
+def generate_random_time_interval(period_start, period_end, duration):
+    """
+    Generates a random start and end time (ISO8601) within the given period.
+    """
+    period_start_dt = datetime.strptime(period_start, "%Y-%m-%d %H:%M:%S")
+    period_end_dt   = datetime.strptime(period_end, "%Y-%m-%d %H:%M:%S")
+    total_duration  = period_end_dt - period_start_dt
+
+    if duration > total_duration:
+        raise ValueError("The specified duration exceeds the total period duration.")
+
+    latest_start = period_end_dt - duration
+    random_seconds = random.randint(0, int((latest_start - period_start_dt).total_seconds()))
+    random_start = period_start_dt + timedelta(seconds=random_seconds)
+    random_end   = random_start + duration
+
+    return random_start.strftime("%Y-%m-%dT%H:%M:%SZ"), random_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def generate_random_position_in_Berlin():
     poslong = random.uniform(13.088346, 13.761160)
@@ -43,7 +61,7 @@ def get_terraform_output(deployment = "multi"):
     path = os.path.join("../../../geomesa-accumulo/gcp", deployment)
 
     # Change the current working directory
-    os.chdir(path)
+    os.chdir("../../../geomesa-accumulo/gcp/single")
 
     # Run the terraform output command
     result = subprocess.run(['terraform', 'output', '-json'], stdout=subprocess.PIPE)
@@ -61,8 +79,9 @@ def execute_query(query_type, limit):
         match query_type:
             case "surrounding":
                 poslong, poslat = generate_random_position_in_Berlin()
+                radius = random.randint(3000, 8000)
                 #replace -q "" with -q"$query"
-                query = f"DWITHIN(geom, POINT({poslong} {poslat}), 5000, meters)"
+                query = f"DWITHIN(geom, POINT({poslong} {poslat}), {radius}, meters)"
                 final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
                 if(limit == -1):
                     final_query = final_query.replace("-m", "")
@@ -74,8 +93,6 @@ def execute_query(query_type, limit):
                 #run the query in the shell
                 result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
 
-                #run the query here
-                # get time after executing query
                 end = time.time()
                 duration = end - start
                 # write the duration, along with other query data, to a file
@@ -84,6 +101,7 @@ def execute_query(query_type, limit):
                 records = ""
 
                 print(records)
+                print(result)
                 
                 # get paths between two random points
 
@@ -140,69 +158,10 @@ def execute_query(query_type, limit):
                 with open("durations.csv", "a") as file:
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 print(result)
-            #insert a single trip into the database
-            case "insert_ride":
-                path_length = 0
-                
-                random_rider_id = random.randint(1, 30)
-                ride_id = get_max_ride_id() + 1
-                random_latitude = random.uniform(52.338049, 52.675454)
-                random_longitude = random.uniform(13.088346, 13.761160)
-                ride_date = time.strftime('%Y-%m-%d %H:%M:%S')
-                initial_start = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                duration = 0
-                while path_length < limit:
-                    ride_date = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                    
-                    random_latitude  += random.uniform(-0.000001, 0.000001)
-                    random_longitude += random.uniform(-0.000001, 0.000001)
-                    ride_date = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-
-                    start = time.time()
-                  # get time after executing query
-                    end = time.time()
-                    duration += end - start
-                    path_length += 1
-                end = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                with open("durations.csv", "a") as file:
-                    file.write(f"{query_type},1,{initial_start},{end},{duration}\n")
-                print(f"Ride {ride_id} of length {path_length} inserted successfully into cycling_data table")
-                
-            #bulk insert ride_data
-
-            case "bulk_insert_rides":
-                rides_inserted = 0
-                ride_id = get_max_ride_id() + 1
-                while rides_inserted < limit:
-                    path_length = 0
-                    random_rider_id = random.randint(1, 30)
-                    
-                    random_latitude = random.uniform(52.338049, 52.675454)
-                    random_longitude = random.uniform(13.088346, 13.761160)
-                    ride_date = time.strftime('%Y-%m-%d %H:%M:%S')
-                    initial_start = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                    duration = 0
-                    while path_length < limit:
-                        ride_date = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                        random_latitude  += random.uniform(-0.000001, 0.000001)
-                        random_longitude += random.uniform(-0.000001, 0.000001)
-                        ride_date = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                        
-                        start = time.time()
-                        
-                        end = time.time()
-                        duration += end - start
-                        path_length += 1
-                    end = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:3]
-                    rides_inserted += 1
-                    ride_id += 1
-                with open("durations.csv", "a") as file:
-                    file.write(f"{query_type},1,{initial_start},{end},{duration}\n")
-                print(f"Ride {ride_id} of length {path_length} inserted successfully into cycling_data table")
-            #same as polygonal area for now?
+            
             case "bounding_box":
                 poslong, poslat = generate_random_position_in_Berlin()
-                size = 0.1
+                size = 0.3
                 query = f"WITHIN(geom, POLYGON(({poslong-size} {poslat-size}, {poslong-size} {poslat+size}, {poslong+size} {poslat+size}, {poslong+size} {poslat-size}, {poslong-size} {poslat-size})))"
                 final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
                 if(limit == -1):
@@ -222,10 +181,10 @@ def execute_query(query_type, limit):
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 print(result)
             case "polygonal_area":
-                lat1 , lon1 = generate_random_position_in_Berlin()
-                lat2 , lon2 = generate_random_position_in_Berlin()
-                lat3 , lon3 = generate_random_position_in_Berlin()
-                lat4 , lon4 = generate_random_position_in_Berlin()
+                lon1 , lat1 = generate_random_position_in_Berlin()
+                lon2 , lat2 = generate_random_position_in_Berlin()
+                lon3 , lat3 = generate_random_position_in_Berlin()
+                lon4 , lat4 = generate_random_position_in_Berlin()
                 query = f"WITHIN(geom, POLYGON(({lon1} {lat1}, {lon2} {lat2}, {lon3} {lat3}, {lon4} {lat4}, {lon1} {lat1})))"
                 final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
                 if(limit == -1):
@@ -242,14 +201,31 @@ def execute_query(query_type, limit):
                 with open("durations.csv", "a") as file:
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 print(result)
-            
-            #temporal query POSTGIS style
-            case "time_interval":
+        
 
-                # define start and end time for the query
-                start_time = "2023-07-23T00:00:00Z"
-                end_time = "2023-07-23T23:59:59Z"
-                query = f"timestamp < '{end_time}' AND timestamp > '{start_time}'"
+            case "time_interval":
+                # Use a fixed time interval (or generate one)
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=2))
+                query = f"timestamp DURING {start_time}/{end_time}"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
+                
+            case "time_slice_points":
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=2))
+                query = f"timestamp = '{start_time}'"
                 final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
                 if(limit == -1):
                     final_query = final_query.replace("-m", "")
@@ -266,7 +242,26 @@ def execute_query(query_type, limit):
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 print(result)
 
-            #MobilityDB feature test
+                
+            case "trips_starting_after_timestamp":
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=2))
+                query = f"timestamp > '{start_time}'"
+                final_query = ssh_trip.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
+
             case "get_trip":
                 # define start and end time for the query
                 ride_id = random.randint(1, 400)
@@ -286,74 +281,106 @@ def execute_query(query_type, limit):
                 with open("durations.csv", "a") as file:
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 print(result)
-            case "get_trip_length":
-                # define start and end time for the query
-                ride_id = random.randint(1, 400)
-                
-                print(query)
-                start = time.time()
-                # get time after executing query
-                end = time.time()
-                duration = end - start
-                # write the duration, along with other query data, to a file
-                with open("durations.csv", "a") as file:
-                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
-                records = ""
-                print(records)
-            #MobiilityDB temporal support test
-            case "get_trip_duration":
-                # define start and end time for the query
-                ride_id = random.randint(1, 400)
-               
-                start = time.time()
-                # get time after executing query
-                end = time.time()
-                duration = end - start
-                # write the duration, along with other query data, to a file
-                with open("durations.csv", "a") as file:
-                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
-                records = ""
-                print(records)
-            case "get_trip_speed":
-                # define start and end time for the query
-                ride_id = random.randint(1, 400)
-                
-                start = time.time()
-                # get time after executing query
-                end = time.time()
-                duration = end - start
-                # write the duration, along with other query data, to a file
-                with open("durations.csv", "a") as file:
-                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
-                records = ""
-                print(records)
-            case "interval_around_timestamp":
-                # define start and end time for the query
-                start_time = "2023-07-01 00:00:00"
 
+            case "attribute_value_filter_points":
+                ride_id = random.randint(1, 400)
+                query = f"ride_id > {ride_id}"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
                 start = time.time()
-                # get time after executing query
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
                 end = time.time()
                 duration = end - start
                 # write the duration, along with other query data, to a file
                 with open("durations.csv", "a") as file:
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
-                records = ""
-                print(records)
+                print(result)
+
+            case "attribute_value_filter_trips":
+                ride_id = random.randint(1, 400)
+                query = f"ride_id > {ride_id}"
+                final_query = ssh_trip.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
+                
+           
+    
+            case "interval_around_timestamp":
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=2))
+                query = f"timestamp DURING {start_time}-PT30M/{start_time}+PT30M"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
+
             case "spatiotemporal":
-                # define start and end time for the query
-                start_time = "2023-07-01 00:00:00"
-                end_time = "2023-07-01 01:00:00"
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=10))
                 poslong, poslat = generate_random_position_in_Berlin()
+                query = f"timestamp DURING {start_time}/{end_time} AND DWITHIN(geom, POINT({poslong} {poslat}), 10000, meters)"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
                 start = time.time()
-                # get time after executing query
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
                 end = time.time()
                 duration = end - start
                 # write the duration, along with other query data, to a file
                 with open("durations.csv", "a") as file:
                     file.write(f"{query_type},{limit},{start},{end},{duration}\n")
                 records = ""
-                print(records)
+                print(result)
+
+
+            case "temporal_changes_in_region":
+                start_time, end_time = generate_random_time_interval("2023-03-01 00:00:00", "2024-01-31 23:59:59", timedelta(hours=24))
+                poslong, poslat = generate_random_position_in_Berlin()
+                query = f"timestamp DURING {start_time}/{end_time} AND DWITHIN(geom, POINT({poslong} {poslat}), 10000, meters)"
+                final_query = ssh_point.replace("-q \"\"", f"-q \"{query}\"")
+                if(limit == -1):
+                    final_query = final_query.replace("-m", "")
+                else:
+                    final_query = final_query.replace("-m", f"-m {limit}")
+                print(final_query)
+                start = time.time()
+                #run the query in the shell
+                result = subprocess.run(final_query, shell=True, stdout=subprocess.PIPE)
+                end = time.time()
+                duration = end - start
+                # write the duration, along with other query data, to a file
+                with open("durations.csv", "a") as file:
+                    file.write(f"{query_type},{limit},{start},{end},{duration}\n")
+                print(result)
 
     except (Exception) as error:
         print("Error while connecting", error)
@@ -375,10 +402,6 @@ def run_threads(num_threads, query_type, limit):
         # clear the threads list
         threads.clear()
 
-# Create and start a thread until the number of threads is reached
-# run mini benchmark
-#setup benchmark for geomesa instead of mobilityDB, but use same queries in CQL
-#set deployment variable if you want to use single or multi node setup
 
 
 if len(sys.argv) < 2:
@@ -386,7 +409,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 deployment = sys.argv[1]
 if(deployment == ""):
-    deployment = "multi"
+    deployment = "single"
 terraform_output = get_terraform_output(deployment)
 #get variables ssh_user and ip from terraform output
 ssh_user = terraform_output["ssh_user"]["value"]
@@ -401,10 +424,6 @@ ssh_trip = f"ssh {ssh_user}@{ip} '/opt/geomesa-accumulo/bin/geomesa-accumulo exp
 
 
 
-#initial insert of data if not done on machine, 
-#clear_table('cycling_data')
-#clear_table('cycling_trips')
-#initial_insert()
 
 
 
@@ -412,55 +431,24 @@ ssh_trip = f"ssh {ssh_user}@{ip} '/opt/geomesa-accumulo/bin/geomesa-accumulo exp
 #run_threads(#Number of parallel threads, default query to use, query type, limit)
 
 
-#TODO fix this and possibly use yaml for configuration
-# benchmark_config = yaml.safe_load(open("benchmark_conf.yaml"))
-# #print items of surrounding from benchmark_config
-# print(benchmark_config['surrounding'])
-
-# surrounding = benchmark_config['surrounding']
-# ride_traffic = benchmark_config['ride_traffic']
-# intersections = benchmark_config['intersections']
-# insert_ride = benchmark_config['insert_ride']
-# bulk_insert_rides = benchmark_config['bulk_insert_rides']
-# bounding_box = benchmark_config['bounding_box']
-# polygonal_area = benchmark_config['polygonal_area']
-# time_interval = benchmark_config['time_interval']
-# get_trip = benchmark_config['get_trip']
-# get_trip_length = benchmark_config['get_trip_length']
-# get_trip_duration = benchmark_config['get_trip_duration']
-# get_trip_speed = benchmark_config['get_trip_speed']
-# interval_around_timestamp = benchmark_config['interval_around_timestamp']
-# spatiotemporal = benchmark_config['spatiotemporal']
-#run threads with the configurations instead of hardcoding
-
-
 #Run the benchmark
-run_threads(1, "surrounding", -1)
-run_threads(1, "ride_traffic", -1)
-run_threads(1, "intersections", -1)
-#run_threads(1, "insert_ride", -1)
-#run_threads(1, "bulk_insert_rides", -1)
-run_threads(1, "bounding_box", -1)
-run_threads(1, "polygonal_area", -1)
-run_threads(1, "time_interval", -1)
-run_threads(1, "get_trip", -1)
-#run_threads(1, "get_trip_length", -1)
-#run_threads(1, "get_trip_duration", -1)
-#run_threads(1, "get_trip_speed", -1)
-#run_threads(1, "interval_around_timestamp", -1)
-#run_threads(1, "spatiotemporal", -1)
+#run_threads(1, "surrounding", 50)
+#run_threads(1, "ride_traffic", 50)
+#run_threads(1, "intersections", 50)
 
+#run_threads(1, "bounding_box", 50)
+#run_threads(1, "polygonal_area", 50)
+#run_threads(1, "time_interval", 50)
+#run_threads(1, "get_trip", 50)
 
-#run_threads(2, default_query, "ride_traffic", 50)
-#run_threads(2, default_query, "intersections", 50)
-#run_threads(2, default_query, "insert_ride", 10)
-#run_threads(1, default_query, "bulk_insert_rides", 10)
-#run_threads(2, default_query, "bounding_box", 50)
-#run_threads(2, default_query, "polygonal_area", 50)
-#run_threads(2, default_query, "time_interval", 50)
-#run_threads(2, default_query, "get_trip", 50)
-#run_threads(2, default_query, "get_trip_length", 50)
-#run_threads(2, default_query, "get_trip_duration", 50)
-#run_threads(2, default_query, "get_trip_speed", 50)
-#run_threads(2, default_query, "interval_around_timestamp", 50)
-#run_threads(2, default_query, "spatiotemporal", 50)
+#run_threads(1, "get_trip_duration", 50)
+
+#run_threads(1, "interval_around_timestamp", 50) didnt work
+#run_threads(1, "spatiotemporal", 50)
+#run_threads(1, "nearest_neighbor", 50)
+run_threads(1, "time_slice_points", 50)
+#run_threads(1, "count_points_in_time_range", 50)
+#run_threads(1, "temporal_changes_in_region", 50)
+#run_threads(1, "rider_threshold", 50)
+#run_threads(1, "attribute_value_filter_trips", 50)
+#run_threads(1, "trips_starting_after_timestamp", 50)
