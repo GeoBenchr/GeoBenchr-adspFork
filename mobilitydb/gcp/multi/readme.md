@@ -26,6 +26,16 @@ scp ../../../data/trips_merged00.csv $SSH_USER@$GCP_IP:/tmp/
 scp ../../../data/trips_merged01.csv $SSH_USER@$GCP_IP:/tmp/
 scp ../../../data/trips_merged02.csv $SSH_USER@$GCP_IP:/tmp/
 ```
+
+### Movebank
+Run the data downloader with the desired number of records
+```
+bash ../../../data/moveBank/get_movebank_dataset.sh <number_of_rows>
+```
+Copy the desired files to the VM. In this case, all of them:
+```
+scp ../../../data/moveBank/datasets/*.csv $SSH_USER@$GCP_IP:/tmp
+```
 ## Connect to the manager and configure MobilityDB to function correctly in a Citus cluster
 ```
 scp scripts/setupRideData.sh $SSH_USER@$GCP_IP:~/ 
