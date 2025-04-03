@@ -6,11 +6,11 @@ psycopg2
 
 You can then run the benchmark using the following command, with "5432" being the default port of PostgreSQL servers (which MobilityDB is based on )
 ```
-python runMiniBenchmark.py <GCP_IP> 5432
+python runMiniBenchmark.py <GCP_IP> 5432 single/multi
 ```
 Example:
 ```
-python runMiniBenchmark.py 32.219.34.10 5432
+python runMiniBenchmark.py 32.219.34.10 5432 single
 ```
 
 ## What does the benchmark contain

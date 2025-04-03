@@ -6,7 +6,7 @@ variable "zone" {
 }
 #adjust this
 variable "project" {
-    default = "geobenchr-benchmark"
+    default = "geobenchr-440309"
 }
 # don't set this to root
 variable "gcp_ssh_user" {
@@ -14,7 +14,7 @@ variable "gcp_ssh_user" {
 }
 # NEED TO ADJUST THIS ON YOUR DEVICE, BECAUSE THIS IS THE PATH TO YOUR SSH PUBLIC KEY
 variable "gcp_ssh_pub_key_file" {
-    default = "/Users/gov/.ssh/id_ed25519.pub"
+    default = "/home/ilja/.ssh/id_ed25519.pub"
 }
 variable "manager_machine_type" {
     default = "n4-standard-4"
