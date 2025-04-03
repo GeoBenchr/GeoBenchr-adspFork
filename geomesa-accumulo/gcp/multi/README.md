@@ -71,6 +71,8 @@ You can now use your browser to check if Accumulo is running correctly by connec
 http://<Manager_IP>:9995
 ```
 ## Copy data to the machine
+
+### SimRa
 If you want to copy all files onto the machine (not recommended, as your upload speed might be):
 ```
 scp ../../../data/geomesa*.csv $SSH_USER@$GCP_IP:~/ 
@@ -89,7 +91,15 @@ scp ../../../data/geomesa_trips_geomesa_merged01.csv $SSH_USER@$GCP_IP:~/
 scp ../../../data/geomesa_trips_geomesa_merged02.csv $SSH_USER@$GCP_IP:~/ 
 scp ../../../data/geomesa_trips_geomesa_merged03.csv $SSH_USER@$GCP_IP:~/ 
 ```
-
+### MoveBank
+Run the data downloader with the desired number of records
+```
+bash ../../../data/moveBank/get_movebank_dataset.sh <number_of_rows>
+```
+Copy the desired files to the VM. In this case, all of them:
+```
+scp ../../../data/moveBank/datasets/geomesa/*.csv $SSH_USER@$GCP_IP:~/
+```
 
 ## Setup the last parts
 These commands install some needed dependencies:
@@ -101,6 +111,8 @@ Here we create SimpleFeatureType schemas, which GeoMesa uses for storing spatiot
 ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "ride_id:Integer:index=full,rider_id:Integer:index=full,latitude:Double,longitude:Double,geom:Point:srid=4326,x:Double,y:Double,z:Double,timestamp:Date" -f ride_data'
 
 ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "ride_id:Integer:index=full,rider_id:Integer:index=full,trip:MultiLineString:srid=4326,timestamp:List[Date]" -f trip_data'
+
+ssh $SSH_USER@$GCP_IP 'cd /opt/geomesa-accumulo; bin/geomesa-accumulo create-schema -i test -z localhost -u root  -p test -c example -s "timestamp:Date,lon:Double,lat:Double,geom:Point:srid=4326,individualId:Integer,tagId:Integer,datasetId:Integer,index:Double" -f movebank_data'
 ```
 ### Setup a csv converter to convert the data into the correct format
 ```
